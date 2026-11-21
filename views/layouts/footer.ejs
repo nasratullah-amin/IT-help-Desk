@@ -87,5 +87,46 @@
     </div>
 </div>
 <% } %>
+
+<script>
+(function () {
+    var THEME_KEY = 'it_helpdesk_theme';
+
+    function getCurrentTheme() {
+        return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    }
+
+    function syncThemeButtons(theme) {
+        var isDark = theme === 'dark';
+        document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
+            btn.setAttribute('aria-pressed', isDark ? 'true' : 'false');
+            btn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+            btn.setAttribute('title', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+            var label = btn.querySelector('.theme-toggle-label');
+            if (label) {
+                label.textContent = isDark ? 'Light' : 'Dark';
+            }
+        });
+    }
+
+    function applyTheme(theme) {
+        var normalized = theme === 'dark' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', normalized);
+        try {
+            localStorage.setItem(THEME_KEY, normalized);
+        } catch (e) {}
+        syncThemeButtons(normalized);
+    }
+
+    syncThemeButtons(getCurrentTheme());
+
+    document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var nextTheme = getCurrentTheme() === 'dark' ? 'light' : 'dark';
+            applyTheme(nextTheme);
+        });
+    });
+})();
+</script>
 </body>
 </html>

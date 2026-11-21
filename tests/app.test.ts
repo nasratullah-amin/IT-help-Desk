@@ -532,4 +532,35 @@ describe('IT Help Desk End-to-End Verification', () => {
     assert.equal(markRes.status, 200);
     assert.match(markRes.body, /Marked/);
   });
+
+  it('defaults to light mode and includes anti-flash theme script and toggle across all roles and pages', async () => {
+    const guestClient = new CookieClient(baseUrl);
+    const loginPage = await guestClient.request('GET', '/login');
+    assert.equal(loginPage.status, 200);
+    assert.match(loginPage.body, /data-theme="light"/);
+    assert.match(loginPage.body, /localStorage\.getItem\('it_helpdesk_theme'\)/);
+    assert.match(loginPage.body, /data-theme-toggle/);
+
+    const registerPage = await guestClient.request('GET', '/register');
+    assert.equal(registerPage.status, 200);
+    assert.match(registerPage.body, /data-theme-toggle/);
+
+    const cssRes = await guestClient.request('GET', '/css/app.css');
+    assert.equal(cssRes.status, 200);
+    assert.match(cssRes.body, /html\[data-theme='dark'\]/);
+    assert.match(cssRes.body, /color-scheme:\s*light/);
+    assert.match(cssRes.body, /color-scheme:\s*dark/);
+
+    const adminClient = new CookieClient(baseUrl);
+    const adminDash = await adminClient.login('admin@helpdesk.test', 'Admin@12345');
+    assert.match(adminDash.body, /data-theme-toggle/);
+
+    const techClient = new CookieClient(baseUrl);
+    const techDash = await techClient.login('technician@helpdesk.test', 'Tech@12345');
+    assert.match(techDash.body, /data-theme-toggle/);
+
+    const userClient = new CookieClient(baseUrl);
+    const userDash = await userClient.login('user@helpdesk.test', 'User@12345');
+    assert.match(userDash.body, /data-theme-toggle/);
+  });
 });
