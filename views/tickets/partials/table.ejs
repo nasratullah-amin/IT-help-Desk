@@ -1,0 +1,9 @@
+<div class="table-wrap"><table><thead><tr><th>Ticket</th><th>Category</th><th>Priority</th><th>Status</th><th>Assigned to</th><th>Updated</th><th></th></tr></thead><tbody>
+<% if (tickets.length > 0) { %>
+<% for (const ticket of tickets) { %>
+<tr><td><a class="ticket-link" href="/tickets/<%= ticket.id %>">#<%= ticket.id %> · <%= ticket.subject %></a><small class="table-sub">By <%= ticket.user ? ticket.user.name : 'Unknown' %></small></td><td><%= ticket.category ? ticket.category.name : 'Unknown' %></td><td><span class="pill priority-<%= ticket.priority %>"><%= ucfirst(ticket.priority) %></span></td><td><span class="pill status-<%= ticket.status %>"><%= formatLabel(ticket.status) %></span></td><td><%= ticket.technician ? ticket.technician.name : 'Unassigned' %></td><td><%= formatDate(ticket.updatedAt) %></td><td><a class="text-link" href="/tickets/<%= ticket.id %>">Open</a></td></tr>
+<% } %>
+<% } else { %>
+<tr><td colspan="7" class="empty-state">No tickets found. Create a ticket to get started.</td></tr>
+<% } %>
+</tbody></table></div>

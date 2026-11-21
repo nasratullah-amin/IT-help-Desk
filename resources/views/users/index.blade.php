@@ -1,5 +1,0 @@
-@extends('layouts.app')
-@section('title', 'Users')
-@section('content')
-<div class="page-heading"><div><div class="eyebrow">ADMINISTRATION</div><h1>User management</h1><p class="muted">Manage portal access and assign system roles.</p></div></div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Current role</th><th>Change role</th><th>Joined</th></tr></thead><tbody>@foreach($users as $user)<tr><td>{{ $user->name }}</td><td>{{ $user->email }}</td><td>{{ ucfirst($user->role) }}</td><td><form method="POST" action="{{ route('users.role', $user) }}" class="role-form">@csrf @method('PATCH')<select name="role">@foreach(['user','technician','admin'] as $role)<option value="{{ $role }}" @selected($user->role === $role)>{{ ucfirst($role) }}</option>@endforeach</select><button class="btn btn-dark btn-sm">Save</button></form></td><td>{{ $user->created_at->format('d M Y') }}</td></tr>@endforeach</tbody></table></div><div class="pagination-wrap">{{ $users->links() }}</div></section>
-@endsection

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= typeof title !== 'undefined' ? title : 'IT Help Desk' %> | Support Portal</title>
+    <meta name="description" content="IT Help Desk Ticketing System for reporting, assigning, and resolving support tickets.">
+    <meta property="og:title" content="IT Help Desk">
+    <meta property="og:description" content="IT Help Desk Ticketing System for reporting, assigning, and resolving support tickets.">
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+    <header class="topbar">
+        <div class="container nav-wrap">
+            <a class="brand" href="<%= currentUser ? '/dashboard' : '/login' %>"><span class="brand-mark">H</span> HelpDesk</a>
+            <% if (currentUser) { %>
+                <nav class="main-nav">
+                    <a href="/dashboard">Dashboard</a>
+                    <a href="/tickets">Tickets</a>
+                    <% if (currentUser.role === 'admin') { %>
+                        <a href="/categories">Categories</a>
+                        <a href="/users">Users</a>
+                    <% } %>
+                </nav>
+                <div class="nav-user">
+                    <span><%= currentUser.name %> <small><%= ucfirst(currentUser.role) %></small></span>
+                    <form method="POST" action="/logout"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-outline btn-sm">Logout</button></form>
+                </div>
+            <% } %>
+        </div>
+    </header>
+    <main class="container page-content">
+        <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+        <% if (errors && errors.length > 0) { %>
+            <div class="alert alert-error"><strong>Please correct the following:</strong><ul><% for (const error of errors) { %><li><%= error %></li><% } %></ul></div>
+        <% } %>

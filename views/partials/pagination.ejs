@@ -1,0 +1,13 @@
+<% if (pagination && pagination.lastPage > 1) { %>
+<div class="pagination-wrap" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+    <% if (pagination.currentPage > 1) { %>
+        <a class="btn btn-light btn-sm" href="<%= pagination.buildPageUrl(pagination.currentPage - 1) %>">Previous</a>
+    <% } %>
+    <% for (let p = 1; p <= pagination.lastPage; p++) { %>
+        <a class="btn <%= p === pagination.currentPage ? 'btn-primary' : 'btn-light' %> btn-sm" href="<%= pagination.buildPageUrl(p) %>"><%= p %></a>
+    <% } %>
+    <% if (pagination.currentPage < pagination.lastPage) { %>
+        <a class="btn btn-light btn-sm" href="<%= pagination.buildPageUrl(pagination.currentPage + 1) %>">Next</a>
+    <% } %>
+</div>
+<% } %>

@@ -1,0 +1,16 @@
+<%- include('../layouts/header') %>
+<div class="page-heading"><div><div class="eyebrow">SUPPORT REQUESTS</div><h1>Tickets</h1><p class="muted">Search, filter and track technical support requests.</p></div><% if (currentUser.role !== 'technician') { %><a class="btn btn-primary" href="/tickets/create">＋ New ticket</a><% } %></div>
+<form method="GET" class="filter-bar">
+    <input type="search" name="search" placeholder="Search subject, description or ID" value="<%= query.search || '' %>">
+    <select name="status"><option value="">All statuses</option><% for (const s of ['open','assigned','in_progress','resolved','closed']) { %><option value="<%= s %>" <%= query.status === s ? 'selected' : '' %>><%= formatLabel(s) %></option><% } %></select>
+    <select name="priority"><option value="">All priorities</option><% for (const p of ['low','medium','high','critical']) { %><option value="<%= p %>" <%= query.priority === p ? 'selected' : '' %>><%= ucfirst(p) %></option><% } %></select>
+    <select name="category_id"><option value="">All categories</option><% for (const category of categories) { %><option value="<%= category.id %>" <%= String(query.category_id || '') === String(category.id) ? 'selected' : '' %>><%= category.name %></option><% } %></select>
+    <% if (currentUser.role === 'admin') { %>
+    <select name="technician_id"><option value="">All technicians</option><% for (const technician of technicians) { %><option value="<%= technician.id %>" <%= String(query.technician_id || '') === String(technician.id) ? 'selected' : '' %>><%= technician.name %></option><% } %></select>
+    <% } %>
+    <input type="date" name="from" aria-label="Created from" value="<%= query.from || '' %>"><input type="date" name="to" aria-label="Created to" value="<%= query.to || '' %>">
+    <select name="sort"><option value="newest" <%= (query.sort || 'newest') === 'newest' ? 'selected' : '' %>>Newest first</option><option value="oldest" <%= query.sort === 'oldest' ? 'selected' : '' %>>Oldest first</option><option value="updated" <%= query.sort === 'updated' ? 'selected' : '' %>>Recently updated</option><option value="priority" <%= query.sort === 'priority' ? 'selected' : '' %>>Priority</option></select>
+    <button class="btn btn-dark">Apply filters</button><a class="btn btn-light" href="/tickets">Reset</a>
+</form>
+<section class="panel"><%- include('./partials/table', { tickets: tickets }) %><%- include('../partials/pagination', { pagination: pagination }) %></section>
+<%- include('../layouts/footer') %>
