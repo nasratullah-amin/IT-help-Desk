@@ -2,7 +2,9 @@ import path from 'node:path';
 import { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
 import {
+  formatLabel,
   paginate,
+  parsePositiveInt,
   STATUS_TRANSITIONS,
   TICKET_PRIORITIES,
   TICKET_STATUSES,
@@ -12,6 +14,7 @@ import {
   flashErrors,
   flashSuccess,
   render403,
+  render404,
   requireAuth,
   requireRole,
   verifyMultipartCsrf,
@@ -24,6 +27,7 @@ import {
   attachments,
   categories,
   comments,
+  createNotification,
   ticketHistories,
   tickets,
   users,
@@ -48,7 +52,9 @@ const upload = multer({
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname || '').toLowerCase();
     if (!ALLOWED_EXTENSIONS.has(ext)) {
-      cb(new Error('The attachment must be a file of type: pdf, png, jpg, jpeg, txt, doc, docx.'));
+      cb(
+        new Error('The attachment must be a file of type: pdf, png, jpg, jpeg, txt, doc, docx.')
+      );
       return;
     }
     cb(null, true);
@@ -65,7 +71,8 @@ function handleUpload(req: Request, res: Response, next: NextFunction): void {
             ? err.message
             : 'Invalid attachment file.';
       flashErrors(req, [msg], req.body as Record<string, unknown>);
-      res.redirect(req.get('Referer') || '/tickets');
+      const fallback = req.params.id ? `/tickets/${req.params.id}` : '/tickets/create';
+      res.redirect(fallback);
       return;
     }
     next();
@@ -112,19 +119,27 @@ function storeAttachmentFile(req: Request, ticket: Ticket, userId: number): void
     buffer: req.file.buffer,
     createdAt: new Date(),
   });
-  recordHistory(ticket, userId, 'attachment_uploaded', null, null, 'Attachment uploaded');
+  recordHistory(ticket, userId, 'attachment_uploaded', null, originalName, `Uploaded ${originalName}`);
 }
 
-function getActiveCategories() {
+function getActiveCategories(includeId?: number) {
   return Array.from(categories.values())
-    .filter((c) => c.isActive)
+    .filter((c) => c.isActive || (includeId !== undefined && c.id === includeId))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function getTechnicians() {
+function getTechnicians(includeId?: number | null) {
   return Array.from(users.values())
-    .filter((u) => u.role === 'technician')
+    .filter(
+      (u) =>
+        (u.role === 'technician' && u.isActive) ||
+        (includeId !== undefined && includeId !== null && u.id === includeId)
+    )
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function getActiveAdmins(): User[] {
+  return Array.from(users.values()).filter((u) => u.role === 'admin' && u.isActive);
 }
 
 router.get('/tickets', requireAuth, (req, res) => {
@@ -153,8 +168,12 @@ router.get('/tickets', requireAuth, (req, res) => {
       return false;
     }
     if (categoryId && Number(categoryId) !== t.categoryId) return false;
-    if (technicianId && user.role === 'admin' && Number(technicianId) !== t.assignedTo) {
-      return false;
+    if (technicianId && user.role === 'admin') {
+      if (technicianId === 'unassigned') {
+        if (t.assignedTo !== null) return false;
+      } else if (Number(technicianId) !== t.assignedTo) {
+        return false;
+      }
     }
     if (from) {
       const fromDate = new Date(`${from}T00:00:00`);
@@ -166,11 +185,20 @@ router.get('/tickets', requireAuth, (req, res) => {
     }
     if (search) {
       const lower = search.toLowerCase();
-      const numericId = /^\d+$/.test(search) ? Number(search) : 0;
+      const numericId = /^#?\d+$/.test(search) ? Number(search.replace('#', '')) : 0;
+      const requester = users.get(t.userId);
+      const technician = t.assignedTo ? users.get(t.assignedTo) : undefined;
+      const category = categories.get(t.categoryId);
+
       const matches =
         t.subject.toLowerCase().includes(lower) ||
         t.description.toLowerCase().includes(lower) ||
-        (numericId > 0 && t.id === numericId);
+        (numericId > 0 && t.id === numericId) ||
+        (requester &&
+          (requester.name.toLowerCase().includes(lower) ||
+            requester.email.toLowerCase().includes(lower))) ||
+        (technician && technician.name.toLowerCase().includes(lower)) ||
+        (category && category.name.toLowerCase().includes(lower));
       if (!matches) return false;
     }
     return true;
@@ -203,13 +231,14 @@ router.get('/tickets', requireAuth, (req, res) => {
     category: categories.get(t.categoryId) ?? null,
   }));
 
-  const pagination = paginate(hydrated, req.query.page, 12, '/tickets', req.query);
+  const pagination = paginate(hydrated, req.query.page, 10, '/tickets', req.query);
 
   res.render('tickets/index', {
     title: 'Tickets',
+    breadcrumbs: [{ label: 'Dashboard', href: '/dashboard' }, { label: 'Tickets' }],
     tickets: pagination.items,
     pagination,
-    categories: getActiveCategories(),
+    categories: Array.from(categories.values()).sort((a, b) => a.name.localeCompare(b.name)),
     technicians: user.role === 'admin' ? getTechnicians() : [],
   });
 });
@@ -221,7 +250,12 @@ router.get('/tickets/create', requireAuth, (_req, res) => {
     return;
   }
   res.render('tickets/create', {
-    title: 'New ticket',
+    title: 'Create ticket',
+    breadcrumbs: [
+      { label: 'Dashboard', href: '/dashboard' },
+      { label: 'Tickets', href: '/tickets' },
+      { label: 'New ticket' },
+    ],
     categories: getActiveCategories(),
     ticket: null,
   });
@@ -293,15 +327,29 @@ router.post('/tickets', requireAuth, handleUpload, verifyMultipartCsrf, (req, re
     storeAttachmentFile(req, ticket, user.id);
   }
 
+  // Notify active admins about new ticket
+  for (const admin of getActiveAdmins()) {
+    if (admin.id !== user.id) {
+      createNotification({
+        userId: admin.id,
+        ticketId: ticket.id,
+        type: 'ticket_created',
+        title: `New ${ticket.priority} priority ticket`,
+        message: `Ticket #${ticket.id}: "${ticket.subject}" submitted by ${user.name}.`,
+      });
+    }
+  }
+
   flashSuccess(req, 'Ticket created successfully.');
   res.redirect(`/tickets/${ticket.id}`);
 });
 
 router.get('/tickets/:id', requireAuth, (req, res) => {
   const user: User = res.locals.currentUser;
-  const ticket = tickets.get(Number(req.params.id));
+  const id = parsePositiveInt(req.params.id);
+  const ticket = id ? tickets.get(id) : undefined;
   if (!ticket) {
-    res.status(404).send('Ticket not found.');
+    render404(res, 'Ticket not found.');
     return;
   }
   if (!TicketPolicy.view(user, ticket)) {
@@ -316,6 +364,7 @@ router.get('/tickets/:id', requireAuth, (req, res) => {
 
   const ticketAttachments = Array.from(attachments.values())
     .filter((a) => a.ticketId === ticket.id)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id - a.id)
     .map((a) => ({ ...a, user: users.get(a.userId) ?? null }));
 
   const ticketHistory = Array.from(ticketHistories.values())
@@ -325,6 +374,11 @@ router.get('/tickets/:id', requireAuth, (req, res) => {
 
   res.render('tickets/show', {
     title: `Ticket #${ticket.id}`,
+    breadcrumbs: [
+      { label: 'Dashboard', href: '/dashboard' },
+      { label: 'Tickets', href: '/tickets' },
+      { label: `#${ticket.id}` },
+    ],
     ticket: {
       ...ticket,
       user: users.get(ticket.userId) ?? null,
@@ -334,16 +388,17 @@ router.get('/tickets/:id', requireAuth, (req, res) => {
       attachments: ticketAttachments,
       histories: ticketHistory,
     },
-    technicians: user.role === 'admin' ? getTechnicians() : [],
+    technicians: user.role === 'admin' ? getTechnicians(ticket.assignedTo) : [],
     statusOptions: STATUS_TRANSITIONS[ticket.status] ?? [],
   });
 });
 
 router.get('/tickets/:id/edit', requireAuth, (req, res) => {
   const user: User = res.locals.currentUser;
-  const ticket = tickets.get(Number(req.params.id));
+  const id = parsePositiveInt(req.params.id);
+  const ticket = id ? tickets.get(id) : undefined;
   if (!ticket) {
-    res.status(404).send('Ticket not found.');
+    render404(res, 'Ticket not found.');
     return;
   }
   if (!TicketPolicy.update(user, ticket)) {
@@ -351,17 +406,24 @@ router.get('/tickets/:id/edit', requireAuth, (req, res) => {
     return;
   }
   res.render('tickets/edit', {
-    title: 'Edit ticket',
+    title: `Edit ticket #${ticket.id}`,
+    breadcrumbs: [
+      { label: 'Dashboard', href: '/dashboard' },
+      { label: 'Tickets', href: '/tickets' },
+      { label: `#${ticket.id}`, href: `/tickets/${ticket.id}` },
+      { label: 'Edit' },
+    ],
     ticket,
-    categories: getActiveCategories(),
+    categories: getActiveCategories(ticket.categoryId),
   });
 });
 
 router.put('/tickets/:id', requireAuth, (req, res) => {
   const user: User = res.locals.currentUser;
-  const ticket = tickets.get(Number(req.params.id));
+  const id = parsePositiveInt(req.params.id);
+  const ticket = id ? tickets.get(id) : undefined;
   if (!ticket) {
-    res.status(404).send('Ticket not found.');
+    render404(res, 'Ticket not found.');
     return;
   }
   if (!TicketPolicy.update(user, ticket)) {
@@ -389,7 +451,7 @@ router.put('/tickets/:id', requireAuth, (req, res) => {
   }
 
   const cat = categories.get(categoryId);
-  if (!cat || !cat.isActive) {
+  if (!cat || (!cat.isActive && cat.id !== ticket.categoryId)) {
     errors.push('The selected category is invalid.');
   }
   if (!TICKET_PRIORITIES.includes(priority as TicketPriority)) {
@@ -408,16 +470,25 @@ router.put('/tickets/:id', requireAuth, (req, res) => {
   }
 
   if (ticket.priority !== priority) {
-    recordHistory(ticket, user.id, 'priority_changed', ticket.priority, priority, 'Priority changed');
-  }
-  if (ticket.categoryId !== categoryId) {
     recordHistory(
       ticket,
       user.id,
-      'category_id_changed',
-      String(ticket.categoryId),
-      String(categoryId),
-      'Category id changed'
+      'priority_changed',
+      ticket.priority,
+      priority,
+      `Priority changed from ${ticket.priority} to ${priority}`
+    );
+  }
+  if (ticket.categoryId !== categoryId) {
+    const oldCat = categories.get(ticket.categoryId)?.name ?? `#${ticket.categoryId}`;
+    const newCat = cat?.name ?? `#${categoryId}`;
+    recordHistory(
+      ticket,
+      user.id,
+      'category_changed',
+      oldCat,
+      newCat,
+      `Category changed from ${oldCat} to ${newCat}`
     );
   }
 
@@ -428,15 +499,16 @@ router.put('/tickets/:id', requireAuth, (req, res) => {
   ticket.updatedAt = new Date();
   recordHistory(ticket, user.id, 'details_updated', null, null, 'Ticket details updated');
 
-  flashSuccess(req, 'Ticket updated.');
+  flashSuccess(req, 'Ticket updated successfully.');
   res.redirect(`/tickets/${ticket.id}`);
 });
 
 router.delete('/tickets/:id', requireAuth, (req, res) => {
   const user: User = res.locals.currentUser;
-  const ticket = tickets.get(Number(req.params.id));
+  const id = parsePositiveInt(req.params.id);
+  const ticket = id ? tickets.get(id) : undefined;
   if (!ticket) {
-    res.status(404).send('Ticket not found.');
+    render404(res, 'Ticket not found.');
     return;
   }
   if (!TicketPolicy.delete(user, ticket)) {
@@ -455,15 +527,16 @@ router.delete('/tickets/:id', requireAuth, (req, res) => {
   }
   tickets.delete(ticket.id);
 
-  flashSuccess(req, 'Ticket deleted.');
+  flashSuccess(req, `Ticket #${ticket.id} deleted.`);
   res.redirect('/tickets');
 });
 
 router.post('/tickets/:id/comments', requireAuth, (req, res) => {
   const user: User = res.locals.currentUser;
-  const ticket = tickets.get(Number(req.params.id));
+  const id = parsePositiveInt(req.params.id);
+  const ticket = id ? tickets.get(id) : undefined;
   if (!ticket) {
-    res.status(404).send('Ticket not found.');
+    render404(res, 'Ticket not found.');
     return;
   }
   if (!TicketPolicy.comment(user, ticket)) {
@@ -488,9 +561,9 @@ router.post('/tickets/:id/comments', requireAuth, (req, res) => {
   }
 
   const now = new Date();
-  const id = allocateCommentId();
-  comments.set(id, {
-    id,
+  const commentId = allocateCommentId();
+  comments.set(commentId, {
+    id: commentId,
     ticketId: ticket.id,
     userId: user.id,
     body,
@@ -499,6 +572,37 @@ router.post('/tickets/:id/comments', requireAuth, (req, res) => {
   });
   ticket.updatedAt = now;
   recordHistory(ticket, user.id, 'comment_added', null, null, 'Comment added');
+
+  // Notify relevant parties
+  if (ticket.userId !== user.id) {
+    createNotification({
+      userId: ticket.userId,
+      ticketId: ticket.id,
+      type: 'comment_added',
+      title: `New comment on Ticket #${ticket.id}`,
+      message: `${user.name} commented on "${ticket.subject}".`,
+    });
+  }
+  if (ticket.assignedTo && ticket.assignedTo !== user.id) {
+    createNotification({
+      userId: ticket.assignedTo,
+      ticketId: ticket.id,
+      type: 'comment_added',
+      title: `New comment on Ticket #${ticket.id}`,
+      message: `${user.name} commented on "${ticket.subject}".`,
+    });
+  }
+  if (!ticket.assignedTo && user.role === 'user') {
+    for (const admin of getActiveAdmins()) {
+      createNotification({
+        userId: admin.id,
+        ticketId: ticket.id,
+        type: 'comment_added',
+        title: `New reply on unassigned Ticket #${ticket.id}`,
+        message: `${user.name} commented on "${ticket.subject}".`,
+      });
+    }
+  }
 
   flashSuccess(req, 'Comment added.');
   res.redirect(`/tickets/${ticket.id}`);
@@ -511,9 +615,10 @@ router.post(
   verifyMultipartCsrf,
   (req, res) => {
     const user: User = res.locals.currentUser;
-    const ticket = tickets.get(Number(req.params.id));
+    const id = parsePositiveInt(req.params.id);
+    const ticket = id ? tickets.get(id) : undefined;
     if (!ticket) {
-      res.status(404).send('Ticket not found.');
+      render404(res, 'Ticket not found.');
       return;
     }
     if (!TicketPolicy.attach(user, ticket)) {
@@ -521,28 +626,29 @@ router.post(
       return;
     }
     if (!req.file) {
-      flashErrors(req, ['The attachment field is required.']);
+      flashErrors(req, ['Please select a valid file to upload.']);
       res.redirect(`/tickets/${ticket.id}`);
       return;
     }
 
     storeAttachmentFile(req, ticket, user.id);
     ticket.updatedAt = new Date();
-    flashSuccess(req, 'Attachment uploaded.');
+    flashSuccess(req, 'Attachment uploaded successfully.');
     res.redirect(`/tickets/${ticket.id}`);
   }
 );
 
 router.get('/attachments/:id/download', requireAuth, (req, res) => {
   const user: User = res.locals.currentUser;
-  const attachment = attachments.get(Number(req.params.id));
+  const id = parsePositiveInt(req.params.id);
+  const attachment = id ? attachments.get(id) : undefined;
   if (!attachment) {
-    res.status(404).send('Attachment not found.');
+    render404(res, 'Attachment not found.');
     return;
   }
   const ticket = tickets.get(attachment.ticketId);
   if (!ticket) {
-    res.status(404).send('Ticket not found.');
+    render404(res, 'Ticket not found.');
     return;
   }
   if (!TicketPolicy.view(user, ticket)) {
@@ -559,11 +665,47 @@ router.get('/attachments/:id/download', requireAuth, (req, res) => {
   res.send(attachment.buffer);
 });
 
+router.delete('/attachments/:id', requireAuth, (req, res) => {
+  const user: User = res.locals.currentUser;
+  const id = parsePositiveInt(req.params.id);
+  const attachment = id ? attachments.get(id) : undefined;
+  if (!attachment) {
+    render404(res, 'Attachment not found.');
+    return;
+  }
+  const ticket = tickets.get(attachment.ticketId);
+  if (!ticket) {
+    render404(res, 'Ticket not found.');
+    return;
+  }
+  const canDelete =
+    user.role === 'admin' ||
+    (attachment.userId === user.id && TicketPolicy.view(user, ticket));
+  if (!canDelete) {
+    render403(res);
+    return;
+  }
+
+  attachments.delete(attachment.id);
+  recordHistory(
+    ticket,
+    user.id,
+    'attachment_removed',
+    attachment.originalName,
+    null,
+    `Removed attachment ${attachment.originalName}`
+  );
+  ticket.updatedAt = new Date();
+  flashSuccess(req, 'Attachment removed.');
+  res.redirect(`/tickets/${ticket.id}`);
+});
+
 router.patch('/tickets/:id/status', requireAuth, (req, res) => {
   const user: User = res.locals.currentUser;
-  const ticket = tickets.get(Number(req.params.id));
+  const id = parsePositiveInt(req.params.id);
+  const ticket = id ? tickets.get(id) : undefined;
   if (!ticket) {
-    res.status(404).send('Ticket not found.');
+    render404(res, 'Ticket not found.');
     return;
   }
   if (!TicketPolicy.manage(user, ticket)) {
@@ -588,7 +730,11 @@ router.patch('/tickets/:id/status', requireAuth, (req, res) => {
   const oldStatus = ticket.status;
   const allowed = STATUS_TRANSITIONS[oldStatus] ?? [];
   if (!allowed.includes(nextStatus as TicketStatus)) {
-    res.status(422).send('This status transition is not allowed.');
+    flashErrors(
+      req,
+      [`Transition from "${formatLabel(oldStatus)}" to "${formatLabel(nextStatus)}" is not allowed.`]
+    );
+    res.redirect(`/tickets/${ticket.id}`);
     return;
   }
 
@@ -603,16 +749,48 @@ router.patch('/tickets/:id/status', requireAuth, (req, res) => {
         ? 'ticket_closed'
         : 'status_changed';
 
-  recordHistory(ticket, user.id, action, oldStatus, nextStatus, note || 'Status updated');
-  flashSuccess(req, 'Ticket status updated.');
+  recordHistory(
+    ticket,
+    user.id,
+    action,
+    oldStatus,
+    nextStatus,
+    note || `Status changed from ${formatLabel(oldStatus)} to ${formatLabel(nextStatus)}`
+  );
+
+  // Notify requester and assigned technician
+  if (ticket.userId !== user.id) {
+    createNotification({
+      userId: ticket.userId,
+      ticketId: ticket.id,
+      type: nextStatus === 'resolved' ? 'ticket_resolved' : 'status_changed',
+      title:
+        nextStatus === 'resolved'
+          ? `Ticket #${ticket.id} resolved`
+          : `Ticket #${ticket.id} status updated`,
+      message: `Ticket "${ticket.subject}" is now ${formatLabel(nextStatus)}.`,
+    });
+  }
+  if (ticket.assignedTo && ticket.assignedTo !== user.id) {
+    createNotification({
+      userId: ticket.assignedTo,
+      ticketId: ticket.id,
+      type: nextStatus === 'resolved' ? 'ticket_resolved' : 'status_changed',
+      title: `Ticket #${ticket.id} status updated`,
+      message: `${user.name} changed "${ticket.subject}" to ${formatLabel(nextStatus)}.`,
+    });
+  }
+
+  flashSuccess(req, `Ticket status updated to ${formatLabel(nextStatus)}.`);
   res.redirect(`/tickets/${ticket.id}`);
 });
 
 router.patch('/tickets/:id/assign', requireAuth, requireRole('admin'), (req, res) => {
   const user: User = res.locals.currentUser;
-  const ticket = tickets.get(Number(req.params.id));
+  const id = parsePositiveInt(req.params.id);
+  const ticket = id ? tickets.get(id) : undefined;
   if (!ticket) {
-    res.status(404).send('Ticket not found.');
+    render404(res, 'Ticket not found.');
     return;
   }
   if (!TicketPolicy.assign(user)) {
@@ -623,10 +801,10 @@ router.patch('/tickets/:id/assign', requireAuth, requireRole('admin'), (req, res
   const rawAssigned = typeof req.body.assigned_to === 'string' ? req.body.assigned_to.trim() : '';
   let newId: number | null = null;
   if (rawAssigned !== '') {
-    const parsed = Number(rawAssigned);
-    const tech = users.get(parsed);
-    if (!tech || tech.role !== 'technician') {
-      flashErrors(req, ['The selected technician is invalid.']);
+    const parsed = parsePositiveInt(rawAssigned);
+    const tech = parsed ? users.get(parsed) : undefined;
+    if (!tech || tech.role !== 'technician' || !tech.isActive) {
+      flashErrors(req, ['The selected technician is invalid or inactive.']);
       res.redirect(`/tickets/${ticket.id}`);
       return;
     }
@@ -653,8 +831,27 @@ router.patch('/tickets/:id/assign', requireAuth, requireRole('admin'), (req, res
       'technician_assigned',
       oldName,
       newName,
-      'Technician assignment changed'
+      newId ? `Assigned to ${newName}` : `Unassigned from ${oldName}`
     );
+
+    if (newId) {
+      createNotification({
+        userId: newId,
+        ticketId: ticket.id,
+        type: 'ticket_assigned',
+        title: `Ticket #${ticket.id} assigned to you`,
+        message: `You have been assigned "${ticket.subject}".`,
+      });
+      if (ticket.userId !== user.id) {
+        createNotification({
+          userId: ticket.userId,
+          ticketId: ticket.id,
+          type: 'ticket_assigned',
+          title: `Technician assigned to Ticket #${ticket.id}`,
+          message: `${newName} has been assigned to "${ticket.subject}".`,
+        });
+      }
+    }
   }
   if (ticket.status !== oldStatus) {
     recordHistory(
@@ -663,7 +860,7 @@ router.patch('/tickets/:id/assign', requireAuth, requireRole('admin'), (req, res
       'status_changed',
       oldStatus,
       ticket.status,
-      'Status updated by assignment'
+      `Status updated to ${formatLabel(ticket.status)} by assignment`
     );
   }
 

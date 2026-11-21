@@ -1,48 +1,277 @@
 <%- include('layouts/header') %>
-<div class="page-heading">
-    <div><div class="eyebrow">OVERVIEW</div><h1>Good day, <%= currentUser.name %></h1><p class="muted">Your support workspace at a glance.</p></div>
-    <% if (currentUser.role !== 'technician') { %><a class="btn btn-primary" href="/tickets/create">＋ New ticket</a><% } %>
-</div>
-<% if (currentUser.role === 'admin') { %>
-<div class="stat-grid">
-    <div class="stat-card"><span>All tickets</span><strong><%= stats.total %></strong><small>Across the organization</small></div>
-    <div class="stat-card"><span>Open</span><strong><%= stats.open %></strong><small>Awaiting assignment</small></div>
-    <div class="stat-card"><span>In progress</span><strong><%= stats.progress %></strong><small>Being worked on</small></div>
-    <div class="stat-card"><span>Resolved</span><strong><%= stats.resolved %></strong><small>Awaiting closure</small></div>
-    <div class="stat-card"><span>Closed</span><strong><%= stats.closed %></strong><small>Completed tickets</small></div>
-    <div class="stat-card"><span>Critical priority</span><strong><%= stats.critical %></strong><small>Needs urgent attention</small></div>
-    <div class="stat-card"><span>Users</span><strong><%= adminStats.users %></strong><small>Registered requesters</small></div>
-    <div class="stat-card"><span>Technicians</span><strong><%= adminStats.technicians %></strong><small>Support team members</small></div>
-</div>
-<% } else if (currentUser.role === 'technician') { %>
-<div class="stat-grid">
-    <div class="stat-card"><span>Assigned tickets</span><strong><%= stats.total %></strong><small>Currently assigned to you</small></div>
-    <div class="stat-card"><span>Open</span><strong><%= stats.open %></strong><small>Awaiting acceptance</small></div>
-    <div class="stat-card"><span>In progress</span><strong><%= stats.progress %></strong><small>Work in progress</small></div>
-    <div class="stat-card"><span>High / critical</span><strong><%= stats.high + stats.critical %></strong><small>Priority attention</small></div>
-</div>
-<% } else { %>
-<div class="stat-grid">
-    <div class="stat-card"><span>My tickets</span><strong><%= stats.total %></strong><small>All your support requests</small></div>
-    <div class="stat-card"><span>Open</span><strong><%= stats.open %></strong><small>Waiting for support</small></div>
-    <div class="stat-card"><span>In progress</span><strong><%= stats.progress + stats.assigned %></strong><small>Being handled</small></div>
-    <div class="stat-card"><span>Resolved / closed</span><strong><%= stats.resolved + stats.closed %></strong><small>Completed requests</small></div>
-</div>
-<% } %>
-<section class="panel">
-    <div class="panel-heading"><div><h2>Recent tickets</h2><p class="muted">Latest support requests</p></div><a class="text-link" href="/tickets">View all tickets →</a></div>
-    <%- include('tickets/partials/table', { tickets: tickets }) %>
-</section>
-<section class="panel">
-    <div class="panel-heading"><div><h2>Recent activity</h2><p class="muted">Latest updates on tickets visible to you</p></div></div>
-    <div class="timeline">
-        <% if (recentActivity.length > 0) { %>
-            <% for (const event of recentActivity) { %>
-                <div class="timeline-item"><strong><%= formatLabel(event.action) %></strong><p><%= event.note || 'Ticket updated' %> · <a href="/tickets/<%= event.ticketId %>">#<%= event.ticketId %> <%= event.ticket ? event.ticket.subject : '' %></a></p><small><%= event.user ? event.user.name : 'Former user' %> · <%= formatDateTime(event.createdAt) %></small></div>
+
+<div class="page-header">
+    <div>
+        <h1>Welcome, <%= currentUser.name %></h1>
+        <p class="page-subtitle">
+            <% if (currentUser.role === 'admin') { %>
+                Overview of all support tickets, team workload, and system activity.
+            <% } else if (currentUser.role === 'technician') { %>
+                Overview of support tickets assigned to you and their current progress.
+            <% } else { %>
+                Track your submitted support requests and view recent updates.
             <% } %>
-        <% } else { %>
-            <p class="muted">No activity recorded yet.</p>
+        </p>
+    </div>
+    <div class="header-actions">
+        <a class="btn btn-secondary" href="/tickets">View all tickets</a>
+        <% if (TicketPolicy.create(currentUser)) { %>
+            <a class="btn btn-primary" href="/tickets/create">Create new ticket</a>
         <% } %>
     </div>
+</div>
+
+<% if (currentUser.role === 'admin') { %>
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Tickets</div>
+        <div class="stat-value"><%= stats.total %></div>
+        <div class="stat-hint">All recorded requests</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Open Tickets</div>
+        <div class="stat-value"><%= stats.open %></div>
+        <div class="stat-hint">Awaiting assignment</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">In Progress</div>
+        <div class="stat-value"><%= stats.progress %></div>
+        <div class="stat-hint"><%= stats.assigned %> assigned</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Resolved Tickets</div>
+        <div class="stat-value"><%= stats.resolved %></div>
+        <div class="stat-hint">Ready for closure</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Closed Tickets</div>
+        <div class="stat-value"><%= stats.closed %></div>
+        <div class="stat-hint">Completed requests</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Users</div>
+        <div class="stat-value"><%= adminStats.users %></div>
+        <div class="stat-hint"><%= adminStats.totalUsers %> total accounts</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Technicians</div>
+        <div class="stat-value"><%= adminStats.technicians %></div>
+        <div class="stat-hint">Support staff</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Categories</div>
+        <div class="stat-value"><%= adminStats.categories %></div>
+        <div class="stat-hint"><%= adminStats.activeCategories %> active</div>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-header">
+        <div>
+            <h2>Quick Actions</h2>
+            <p>Common administrative workflows</p>
+        </div>
+    </div>
+    <div class="quick-actions-grid">
+        <a class="quick-action-link" href="/tickets/create"><span>Create Ticket</span><span>&rarr;</span></a>
+        <a class="quick-action-link" href="/tickets?status=open"><span>Review Open Tickets (<%= stats.open %>)</span><span>&rarr;</span></a>
+        <a class="quick-action-link" href="/users"><span>Manage Users (<%= adminStats.totalUsers %>)</span><span>&rarr;</span></a>
+        <a class="quick-action-link" href="/categories"><span>Manage Categories (<%= adminStats.categories %>)</span><span>&rarr;</span></a>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <section class="panel" style="margin-bottom:0">
+        <div class="panel-header">
+            <div>
+                <h2>Ticket Status Overview</h2>
+                <p>Distribution across workflow stages</p>
+            </div>
+        </div>
+        <div class="overview-list">
+            <% const statusRows = [
+                { key: 'open', label: 'Open', count: stats.open },
+                { key: 'assigned', label: 'Assigned', count: stats.assigned },
+                { key: 'in_progress', label: 'In Progress', count: stats.progress },
+                { key: 'resolved', label: 'Resolved', count: stats.resolved },
+                { key: 'closed', label: 'Closed', count: stats.closed },
+            ]; %>
+            <% for (const row of statusRows) { %>
+                <% const pct = stats.total > 0 ? Math.round((row.count / stats.total) * 100) : 0; %>
+                <div class="overview-row">
+                    <div class="overview-meta">
+                        <span class="overview-label"><%= row.label %></span>
+                        <span class="overview-count"><%= row.count %> (<%= pct %>%)</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill status-fill-<%= row.key %>" style="width: <%= pct %>%"></div>
+                    </div>
+                </div>
+            <% } %>
+        </div>
+    </section>
+
+    <section class="panel" style="margin-bottom:0">
+        <div class="panel-header">
+            <div>
+                <h2>Ticket Priority Overview</h2>
+                <p>Current tickets grouped by urgency</p>
+            </div>
+        </div>
+        <div class="overview-list">
+            <% const priorityRows = [
+                { key: 'critical', label: 'Critical', count: stats.critical },
+                { key: 'high', label: 'High', count: stats.high },
+                { key: 'medium', label: 'Medium', count: stats.medium },
+                { key: 'low', label: 'Low', count: stats.low },
+            ]; %>
+            <% for (const row of priorityRows) { %>
+                <% const pct = stats.total > 0 ? Math.round((row.count / stats.total) * 100) : 0; %>
+                <div class="overview-row">
+                    <div class="overview-meta">
+                        <span class="overview-label"><%= row.label %></span>
+                        <span class="overview-count"><%= row.count %> (<%= pct %>%)</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill priority-fill-<%= row.key %>" style="width: <%= pct %>%"></div>
+                    </div>
+                </div>
+            <% } %>
+        </div>
+    </section>
+</div>
+
+<% } else if (currentUser.role === 'technician') { %>
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="stat-label">Assigned Tickets</div>
+        <div class="stat-value"><%= stats.total %></div>
+        <div class="stat-hint">Total assigned to you</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Open / Assigned</div>
+        <div class="stat-value"><%= stats.open + stats.assigned %></div>
+        <div class="stat-hint">Ready to begin work</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">In Progress</div>
+        <div class="stat-value"><%= stats.progress %></div>
+        <div class="stat-hint">Currently investigating</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Resolved Tickets</div>
+        <div class="stat-value"><%= stats.resolved %></div>
+        <div class="stat-hint"><%= stats.closed %> closed</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Critical Priority</div>
+        <div class="stat-value"><%= stats.critical %></div>
+        <div class="stat-hint"><%= stats.high %> high priority</div>
+    </div>
+</div>
+
+<% } else { %>
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="stat-label">My Total Tickets</div>
+        <div class="stat-value"><%= stats.total %></div>
+        <div class="stat-hint">All submitted requests</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">My Open Tickets</div>
+        <div class="stat-value"><%= stats.open %></div>
+        <div class="stat-hint">Awaiting assignment</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">My In Progress</div>
+        <div class="stat-value"><%= stats.progress %></div>
+        <div class="stat-hint"><%= stats.assigned %> assigned to technician</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">My Resolved Tickets</div>
+        <div class="stat-value"><%= stats.resolved %></div>
+        <div class="stat-hint">Solution provided</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">My Closed Tickets</div>
+        <div class="stat-value"><%= stats.closed %></div>
+        <div class="stat-hint">Completed requests</div>
+    </div>
+</div>
+<% } %>
+
+<section class="panel panel-flush">
+    <div class="panel-header">
+        <div>
+            <h2><%= currentUser.role === 'technician' ? 'Recently Assigned Tickets' : 'Recent Tickets' %></h2>
+            <p><%= currentUser.role === 'technician' ? 'Open any ticket to update status, add comments, or review attachments' : 'Latest support requests updated in the portal' %></p>
+        </div>
+        <a class="btn btn-subtle btn-sm" href="/tickets">View all</a>
+    </div>
+    <%- include('tickets/partials/table', { tickets: tickets }) %>
 </section>
+
+<div class="dashboard-grid">
+    <section class="panel" style="margin-bottom:0">
+        <div class="panel-header">
+            <div>
+                <h2>Recent Activity</h2>
+                <p>Latest actions on tickets visible to you</p>
+            </div>
+        </div>
+        <div class="timeline">
+            <% if (recentActivity.length > 0) { %>
+                <% for (const event of recentActivity) { %>
+                    <div class="timeline-item">
+                        <div class="timeline-title"><%= formatLabel(event.action) %></div>
+                        <div class="timeline-note">
+                            <%= event.note || 'Ticket updated' %>
+                            <% if (event.ticket) { %>
+                                · <a href="/tickets/<%= event.ticketId %>">#<%= event.ticketId %> <%= event.ticket.subject %></a>
+                            <% } %>
+                        </div>
+                        <div class="timeline-meta">
+                            <%= event.user ? event.user.name : 'System' %> · <span class="tabular"><%= formatDateTime(event.createdAt) %></span>
+                        </div>
+                    </div>
+                <% } %>
+            <% } else { %>
+                <p class="page-subtitle">No ticket activity recorded yet.</p>
+            <% } %>
+        </div>
+    </section>
+
+    <section class="panel" style="margin-bottom:0">
+        <div class="panel-header">
+            <div>
+                <h2>Recent Notifications</h2>
+                <p>Updates related to your account</p>
+            </div>
+            <a class="btn btn-subtle btn-sm" href="/notifications">View all</a>
+        </div>
+        <div class="timeline">
+            <% if (recentNotifications && recentNotifications.length > 0) { %>
+                <% for (const n of recentNotifications) { %>
+                    <div class="timeline-item">
+                        <div class="timeline-title">
+                            <% if (n.ticketId) { %>
+                                <a href="/notifications/<%= n.id %>/open"><%= n.title %></a>
+                            <% } else { %>
+                                <%= n.title %>
+                            <% } %>
+                            <% if (!n.isRead) { %>
+                                <span class="badge status-open" style="margin-left:6px">Unread</span>
+                            <% } %>
+                        </div>
+                        <div class="timeline-note"><%= n.message %></div>
+                        <div class="timeline-meta tabular"><%= formatDateTime(n.createdAt) %></div>
+                    </div>
+                <% } %>
+            <% } else { %>
+                <p class="page-subtitle">No notifications yet.</p>
+            <% } %>
+        </div>
+    </section>
+</div>
+
 <%- include('layouts/footer') %>

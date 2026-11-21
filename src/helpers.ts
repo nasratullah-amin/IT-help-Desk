@@ -16,11 +16,11 @@ export const TICKET_PRIORITIES: TicketPriority[] = [
 ];
 
 export const STATUS_TRANSITIONS: Record<TicketStatus, TicketStatus[]> = {
-  open: ['assigned'],
-  assigned: ['in_progress', 'open'],
-  in_progress: ['resolved', 'assigned'],
+  open: ['assigned', 'in_progress', 'resolved', 'closed'],
+  assigned: ['in_progress', 'resolved', 'open'],
+  in_progress: ['resolved', 'assigned', 'closed'],
   resolved: ['closed', 'in_progress'],
-  closed: [],
+  closed: ['open'],
 };
 
 const MONTHS = [
@@ -48,6 +48,13 @@ export function ucfirst(str: string): string {
 
 export function formatLabel(str: string): string {
   return ucfirst(str).replace(/_/g, ' ');
+}
+
+export function parsePositiveInt(val: unknown): number | null {
+  if (typeof val !== 'string' && typeof val !== 'number') return null;
+  const num = Number(val);
+  if (!Number.isInteger(num) || num <= 0) return null;
+  return num;
 }
 
 export const TicketPolicy = {

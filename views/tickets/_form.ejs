@@ -1,7 +1,39 @@
 <div class="form-stack">
-<label>Subject<input type="text" name="subject" value="<%= old('subject', ticket ? ticket.subject : '') %>" maxlength="160" required></label>
-<label>Category<select name="category_id" required><option value="">Select category</option><% for (const category of categories) { %><option value="<%= category.id %>" <%= String(old('category_id', ticket ? ticket.categoryId : '')) === String(category.id) ? 'selected' : '' %>><%= category.name %></option><% } %></select></label>
-<label>Priority<select name="priority" required><% for (const priority of ['low','medium','high','critical']) { %><option value="<%= priority %>" <%= old('priority', ticket ? ticket.priority : 'medium') === priority ? 'selected' : '' %>><%= ucfirst(priority) %></option><% } %></select></label>
-<label>Description<textarea name="description" rows="7" required minlength="10" maxlength="10000"><%= old('description', ticket ? ticket.description : '') %></textarea></label>
-<% if (!ticket) { %><label>Attachment <span class="muted inline-note">PDF, image or document · max 5 MB</span><input type="file" name="attachment" accept=".pdf,.png,.jpg,.jpeg,.txt,.doc,.docx"></label><% } %>
+    <label>
+        Subject
+        <input type="text" name="subject" value="<%= old('subject', ticket ? ticket.subject : '') %>" maxlength="160" required placeholder="Brief summary of the issue">
+    </label>
+
+    <div class="form-grid-2">
+        <label>
+            Category
+            <select name="category_id" required>
+                <option value="">Select category</option>
+                <% for (const category of categories) { %>
+                    <option value="<%= category.id %>" <%= String(old('category_id', ticket ? ticket.categoryId : '')) === String(category.id) ? 'selected' : '' %>><%= category.name %><%= category.isActive ? '' : ' (Inactive)' %></option>
+                <% } %>
+            </select>
+        </label>
+
+        <label>
+            Priority
+            <select name="priority" required>
+                <% for (const priority of ['low','medium','high','critical']) { %>
+                    <option value="<%= priority %>" <%= old('priority', ticket ? ticket.priority : 'medium') === priority ? 'selected' : '' %>><%= ucfirst(priority) %></option>
+                <% } %>
+            </select>
+        </label>
+    </div>
+
+    <label>
+        Description
+        <textarea name="description" rows="6" required minlength="10" maxlength="10000" placeholder="Describe the problem, steps to reproduce, and affected device or room"><%= old('description', ticket ? ticket.description : '') %></textarea>
+    </label>
+
+    <% if (!ticket) { %>
+    <label>
+        Attachment <span class="field-hint">Optional · PDF, PNG, JPG, TXT, DOC, DOCX (max 5 MB)</span>
+        <input type="file" name="attachment" accept=".pdf,.png,.jpg,.jpeg,.txt,.doc,.docx">
+    </label>
+    <% } %>
 </div>

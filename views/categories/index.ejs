@@ -1,21 +1,114 @@
 <%- include('../layouts/header') %>
-<div class="page-heading"><div><div class="eyebrow">ADMINISTRATION</div><h1>Ticket categories</h1><p class="muted">Manage the issue types available in the support portal.</p></div></div>
-<div class="detail-grid">
-    <section class="panel"><h2>Add category</h2><form method="POST" action="/categories" class="form-stack"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><label>Name<input name="name" maxlength="80" required></label><label>Description<input name="description" maxlength="255"></label><button class="btn btn-primary">Create category</button></form></section>
-    <section class="panel"><h2>Existing categories</h2>
-        <% if (categories.length > 0) { %>
-        <% for (const category of categories) { %>
-        <div class="category-row category-row-edit">
-            <form method="POST" action="/categories/<%= category.id %>" class="form-stack category-fields"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="_method" value="PUT"><input type="hidden" name="is_active" value="0">
-                <label>Name<input name="name" value="<%= category.name %>" maxlength="80" required></label>
-                <label>Description<input name="description" value="<%= category.description || '' %>" maxlength="255"></label>
-                <label class="check-line"><input type="checkbox" name="is_active" value="1" <%= category.isActive ? 'checked' : '' %>> Active</label>
-                <small><%= category.ticketsCount %> tickets</small><button class="btn btn-light btn-sm">Save changes</button>
-            </form>
-            <% if (category.ticketsCount === 0) { %><form method="POST" action="/categories/<%= category.id %>" onsubmit="return confirm('Delete this category?')"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="_method" value="DELETE"><button class="btn btn-danger btn-sm">Delete</button></form><% } %>
+
+<div class="page-header">
+    <div>
+        <h1>Ticket categories</h1>
+        <p class="page-subtitle">Create, edit, search, and toggle issue categories used for support tickets.</p>
+    </div>
+</div>
+
+<form method="GET" action="/categories" class="filter-bar">
+    <input
+        type="search"
+        name="search"
+        placeholder="Search categories by name or description"
+        value="<%= query.search || '' %>"
+        aria-label="Search categories"
+    >
+    <select name="status" aria-label="Filter by status">
+        <option value="">All statuses</option>
+        <option value="active" <%= query.status === 'active' ? 'selected' : '' %>>Active</option>
+        <option value="inactive" <%= query.status === 'inactive' ? 'selected' : '' %>>Inactive</option>
+    </select>
+    <button type="submit" class="btn btn-primary">Filter</button>
+    <a class="btn btn-secondary" href="/categories">Reset</a>
+</form>
+
+<div class="detail-grid" style="grid-template-columns: minmax(280px, 1fr) minmax(0, 1.8fr);">
+    <section class="panel">
+        <div class="panel-header">
+            <div>
+                <h2>Add Category</h2>
+                <p>New categories are active immediately</p>
+            </div>
         </div>
+        <form method="POST" action="/categories" class="form-stack">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <label>
+                Category name
+                <input type="text" name="name" value="<%= old('name') %>" maxlength="80" required placeholder="e.g., Email Services">
+            </label>
+            <label>
+                Description
+                <input type="text" name="description" value="<%= old('description') %>" maxlength="255" placeholder="Brief summary of covered issues">
+            </label>
+            <button type="submit" class="btn btn-primary">Create category</button>
+        </form>
+    </section>
+
+    <section class="panel">
+        <div class="panel-header">
+            <div>
+                <h2>Existing Categories (<%= categories.length %>)</h2>
+                <p>Categories linked to tickets cannot be deleted, only deactivated</p>
+            </div>
+        </div>
+
+        <% if (categories.length > 0) { %>
+        <div class="category-list">
+            <% for (const category of categories) { %>
+            <div class="category-card">
+                <div class="category-card-top">
+                    <div>
+                        <strong style="font-size:14px"><%= category.name %></strong>
+                        <span class="badge <%= category.isActive ? 'state-active' : 'state-inactive' %>" style="margin-left:8px">
+                            <%= category.isActive ? 'Active' : 'Inactive' %>
+                        </span>
+                        <div class="table-sub tabular"><%= category.ticketsCount %> <%= category.ticketsCount === 1 ? 'ticket' : 'tickets' %> assigned</div>
+                    </div>
+                    <div class="category-card-actions">
+                        <form method="POST" action="/categories/<%= category.id %>/toggle-status" style="margin:0">
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                            <input type="hidden" name="_method" value="PATCH">
+                            <button type="submit" class="btn btn-secondary btn-sm">
+                                <%= category.isActive ? 'Deactivate' : 'Activate' %>
+                            </button>
+                        </form>
+                        <% if (category.ticketsCount === 0) { %>
+                        <form method="POST" action="/categories/<%= category.id %>" style="margin:0" data-confirm="Delete category '<%= category.name %>'?" data-confirm-title="Delete category">
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                            <input type="hidden" name="_method" value="DELETE">
+                            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                        </form>
+                        <% } %>
+                    </div>
+                </div>
+
+                <form method="POST" action="/categories/<%= category.id %>" class="form-stack">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <input type="hidden" name="_method" value="PUT">
+                    <input type="hidden" name="is_active" value="<%= category.isActive ? '1' : '0' %>">
+                    <div class="form-grid-2">
+                        <label>
+                            Name
+                            <input type="text" name="name" value="<%= category.name %>" maxlength="80" required>
+                        </label>
+                        <label>
+                            Description
+                            <input type="text" name="description" value="<%= category.description || '' %>" maxlength="255">
+                        </label>
+                    </div>
+                    <div style="display:flex;justify-content:flex-end">
+                        <button type="submit" class="btn btn-subtle btn-sm">Save changes</button>
+                    </div>
+                </form>
+            </div>
+            <% } %>
+        </div>
+        <% } else { %>
+            <p class="page-subtitle">No categories match your current filter.</p>
         <% } %>
-        <% } else { %><p class="muted">No categories have been created.</p><% } %>
     </section>
 </div>
+
 <%- include('../layouts/footer') %>

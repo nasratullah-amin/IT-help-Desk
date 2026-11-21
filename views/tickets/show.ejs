@@ -1,10 +1,207 @@
 <%- include('../layouts/header') %>
-<div class="page-heading"><div><div class="eyebrow">TICKET #<%= ticket.id %></div><h1><%= ticket.subject %></h1><p class="muted">Submitted by <%= ticket.user ? ticket.user.name : 'Unknown' %> · <%= formatDateTime(ticket.createdAt) %></p></div><div class="heading-actions"><a class="btn btn-light" href="/tickets">Back to tickets</a><% if (TicketPolicy.update(currentUser, ticket)) { %><a class="btn btn-primary" href="/tickets/<%= ticket.id %>/edit">Edit ticket</a><% } %></div></div>
-<div class="detail-grid"><section class="panel"><div class="panel-heading"><h2>Issue details</h2><span class="pill status-<%= ticket.status %>"><%= formatLabel(ticket.status) %></span></div><p class="description-text"><%= ticket.description %></p><div class="meta-grid"><div><small>Category</small><strong><%= ticket.category ? ticket.category.name : 'Unknown' %></strong></div><div><small>Priority</small><strong><span class="pill priority-<%= ticket.priority %>"><%= ucfirst(ticket.priority) %></span></strong></div><div><small>Assigned technician</small><strong><%= ticket.technician ? ticket.technician.name : 'Not assigned' %></strong></div><div><small>Last updated</small><strong><%= formatDateTime(ticket.updatedAt) %></strong></div></div>
-<% if (currentUser.role === 'admin') { %><form class="inline-form assignment-form" method="POST" action="/tickets/<%= ticket.id %>/assign"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="_method" value="PATCH"><label>Assign technician<select name="assigned_to"><option value="">Unassigned</option><% for (const technician of technicians) { %><option value="<%= technician.id %>" <%= ticket.assignedTo === technician.id ? 'selected' : '' %>><%= technician.name %></option><% } %></select></label><button class="btn btn-dark btn-sm">Save assignment</button></form><% } %>
-<% if (TicketPolicy.manage(currentUser, ticket)) { %><form class="workflow-form" method="POST" action="/tickets/<%= ticket.id %>/status"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="_method" value="PATCH"><h3>Update status</h3><div class="workflow-row"><select name="status" <%= statusOptions.length === 0 ? 'disabled' : '' %>><% for (const status of statusOptions) { %><option value="<%= status %>" <%= ticket.status === status ? 'selected' : '' %>><%= formatLabel(status) %></option><% } %></select><input name="note" placeholder="Optional update note" <%= statusOptions.length === 0 ? 'disabled' : '' %>><button class="btn btn-primary" <%= statusOptions.length === 0 ? 'disabled' : '' %>>Update</button></div></form><% } %>
-<% if (ticket.attachments.length > 0) { %><div class="subsection"><h3>Attachments</h3><% for (const attachment of ticket.attachments) { %><a class="file-item" href="/attachments/<%= attachment.id %>/download"><%= attachment.originalName %> <small><%= (attachment.fileSize / 1024).toFixed(1) %> KB</small></a><% } %></div><% } %>
-</section><aside class="panel"><h2>Status history</h2><div class="timeline"><% if (ticket.histories.length > 0) { %><% for (const history of ticket.histories) { %><div class="timeline-item"><strong><%= formatLabel(history.action) %></strong><p><%= history.note || 'Status updated' %></p><small><%= history.user ? history.user.name : 'Former user' %> · <%= formatDateTime(history.createdAt) %></small></div><% } %><% } else { %><p class="muted">No history yet.</p><% } %></div></aside></div>
-<section class="panel comments-panel"><div class="panel-heading"><div><h2>Conversation</h2><p class="muted">Updates between the requester and support team.</p></div></div><% if (ticket.comments.length > 0) { %><% for (const comment of ticket.comments) { %><div class="comment"><div class="comment-avatar"><%= comment.user ? comment.user.name.slice(0, 1).toUpperCase() : '?' %></div><div><strong><%= comment.user ? comment.user.name : 'Former user' %> <% if (comment.user) { %><span class="role-tag"><%= ucfirst(comment.user.role) %></span><% } %></strong><small><%= formatDateTime(comment.createdAt) %></small><p><%= comment.body %></p></div></div><% } %><% } else { %><p class="muted">No comments yet.</p><% } %><% if (TicketPolicy.comment(currentUser, ticket)) { %><form method="POST" action="/tickets/<%= ticket.id %>/comments" class="comment-form"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><textarea name="body" rows="3" maxlength="3000" placeholder="Write a comment..." required></textarea><button class="btn btn-primary">Add comment</button></form><% } %> <% if (TicketPolicy.attach(currentUser, ticket)) { %><form method="POST" action="/tickets/<%= ticket.id %>/attachments" enctype="multipart/form-data" class="upload-row"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="file" name="attachment" required accept=".pdf,.png,.jpg,.jpeg,.txt,.doc,.docx"><button class="btn btn-light">Upload attachment</button></form><% } %></section>
-<% if (TicketPolicy.delete(currentUser, ticket)) { %><form method="POST" action="/tickets/<%= ticket.id %>" class="delete-form" onsubmit="return confirm('Delete this ticket permanently?')"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="_method" value="DELETE"><button class="btn btn-danger">Delete ticket</button></form><% } %>
+
+<div class="page-header">
+    <div>
+        <h1><span class="mono">#<%= ticket.id %></span> · <%= ticket.subject %></h1>
+        <p class="page-subtitle">
+            Submitted by <%= ticket.user ? ticket.user.name : 'Unknown' %> · Created <span class="tabular"><%= formatDateTime(ticket.createdAt) %></span>
+        </p>
+    </div>
+    <div class="header-actions">
+        <a class="btn btn-secondary" href="/tickets">Back to tickets</a>
+        <% if (TicketPolicy.update(currentUser, ticket)) { %>
+            <a class="btn btn-primary" href="/tickets/<%= ticket.id %>/edit">Edit ticket</a>
+        <% } %>
+        <% if (TicketPolicy.delete(currentUser, ticket)) { %>
+            <form method="POST" action="/tickets/<%= ticket.id %>" style="margin:0" data-confirm="Are you sure you want to permanently delete Ticket #<%= ticket.id %>?" data-confirm-title="Delete ticket">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="_method" value="DELETE">
+                <button type="submit" class="btn btn-danger">Delete</button>
+            </form>
+        <% } %>
+    </div>
+</div>
+
+<div class="detail-grid">
+    <div>
+        <section class="panel">
+            <div class="panel-header">
+                <h2>Issue Details</h2>
+                <span class="badge status-<%= ticket.status %>"><%= formatLabel(ticket.status) %></span>
+            </div>
+
+            <div class="description-box"><%= ticket.description %></div>
+
+            <div class="meta-grid">
+                <div class="meta-item">
+                    <small>Category</small>
+                    <strong><%= ticket.category ? ticket.category.name : 'Unknown' %></strong>
+                </div>
+                <div class="meta-item">
+                    <small>Priority</small>
+                    <strong><span class="badge priority-<%= ticket.priority %>"><%= ucfirst(ticket.priority) %></span></strong>
+                </div>
+                <div class="meta-item">
+                    <small>Assigned Technician</small>
+                    <strong><%= ticket.technician ? ticket.technician.name : 'Unassigned' %></strong>
+                </div>
+                <div class="meta-item">
+                    <small>Last Updated</small>
+                    <strong class="tabular"><%= formatDateTime(ticket.updatedAt) %></strong>
+                </div>
+            </div>
+
+            <% if (currentUser.role === 'admin') { %>
+            <div class="subsection">
+                <h3>Technician Assignment</h3>
+                <form class="inline-form" method="POST" action="/tickets/<%= ticket.id %>/assign">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <input type="hidden" name="_method" value="PATCH">
+                    <label>
+                        Assign to technician
+                        <select name="assigned_to" class="form-control">
+                            <option value="">Unassigned</option>
+                            <% for (const technician of technicians) { %>
+                                <option value="<%= technician.id %>" <%= ticket.assignedTo === technician.id ? 'selected' : '' %>><%= technician.name %></option>
+                            <% } %>
+                        </select>
+                    </label>
+                    <button type="submit" class="btn btn-primary">Save assignment</button>
+                </form>
+            </div>
+            <% } %>
+
+            <% if (TicketPolicy.manage(currentUser, ticket)) { %>
+            <div class="subsection">
+                <h3>Update Workflow Status</h3>
+                <% if (statusOptions.length > 0) { %>
+                <form method="POST" action="/tickets/<%= ticket.id %>/status">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <input type="hidden" name="_method" value="PATCH">
+                    <div class="workflow-row">
+                        <select name="status" class="form-control" aria-label="Next status">
+                            <% for (const status of statusOptions) { %>
+                                <option value="<%= status %>"><%= formatLabel(status) %></option>
+                            <% } %>
+                        </select>
+                        <input type="text" name="note" class="form-control" maxlength="500" placeholder="Optional resolution or progress note">
+                        <button type="submit" class="btn btn-primary">Update status</button>
+                    </div>
+                </form>
+                <% } else { %>
+                    <p class="page-subtitle">No further status transitions are available from the current state.</p>
+                <% } %>
+            </div>
+            <% } %>
+
+            <div class="subsection">
+                <h3>Attachments (<%= ticket.attachments.length %>)</h3>
+                <% if (ticket.attachments.length > 0) { %>
+                    <div class="attachment-list">
+                        <% for (const attachment of ticket.attachments) { %>
+                            <div class="attachment-item">
+                                <div class="attachment-info">
+                                    <span class="attachment-name"><%= attachment.originalName %></span>
+                                    <span class="attachment-meta">
+                                        <%= (attachment.fileSize / 1024).toFixed(1) %> KB · Uploaded by <%= attachment.user ? attachment.user.name : 'Unknown' %> · <span class="tabular"><%= formatDateTime(attachment.createdAt) %></span>
+                                    </span>
+                                </div>
+                                <div class="attachment-actions">
+                                    <a class="btn btn-secondary btn-sm" href="/attachments/<%= attachment.id %>/download">Download</a>
+                                    <% if (currentUser.role === 'admin' || attachment.userId === currentUser.id) { %>
+                                    <form method="POST" action="/attachments/<%= attachment.id %>" style="margin:0" data-confirm="Remove attachment '<%= attachment.originalName %>'?" data-confirm-title="Remove attachment">
+                                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                                        <input type="hidden" name="_method" value="DELETE">
+                                        <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                                    </form>
+                                    <% } %>
+                                </div>
+                            </div>
+                        <% } %>
+                    </div>
+                <% } else { %>
+                    <p class="page-subtitle">No files attached to this ticket.</p>
+                <% } %>
+
+                <% if (TicketPolicy.attach(currentUser, ticket)) { %>
+                    <form method="POST" action="/tickets/<%= ticket.id %>/attachments" enctype="multipart/form-data" class="upload-row">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        <div>
+                            <input type="file" name="attachment" required accept=".pdf,.png,.jpg,.jpeg,.txt,.doc,.docx">
+                            <div class="field-hint">Allowed: PDF, PNG, JPG, TXT, DOC, DOCX · max 5 MB</div>
+                        </div>
+                        <button type="submit" class="btn btn-secondary">Upload file</button>
+                    </form>
+                <% } %>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div>
+                    <h2>Conversation</h2>
+                    <p>Updates between requester and support staff</p>
+                </div>
+            </div>
+
+            <% if (ticket.comments.length > 0) { %>
+                <% for (const comment of ticket.comments) { %>
+                    <div class="comment-item">
+                        <div class="comment-avatar" aria-hidden="true"><%= comment.user ? comment.user.name.slice(0, 1).toUpperCase() : '?' %></div>
+                        <div class="comment-body">
+                            <div class="comment-header">
+                                <span class="comment-author"><%= comment.user ? comment.user.name : 'Former user' %></span>
+                                <% if (comment.user) { %>
+                                    <span class="comment-meta"><%= ucfirst(comment.user.role) %></span>
+                                <% } %>
+                                <span class="comment-meta tabular">· <%= formatDateTime(comment.createdAt) %></span>
+                            </div>
+                            <p class="comment-text"><%= comment.body %></p>
+                        </div>
+                    </div>
+                <% } %>
+            <% } else { %>
+                <p class="page-subtitle" style="margin-bottom:14px">No comments have been posted yet.</p>
+            <% } %>
+
+            <% if (TicketPolicy.comment(currentUser, ticket)) { %>
+                <form method="POST" action="/tickets/<%= ticket.id %>/comments" class="form-stack" style="margin-top:16px">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <label>
+                        Add a comment
+                        <textarea name="body" rows="3" maxlength="3000" required placeholder="Write an update or reply..."></textarea>
+                    </label>
+                    <div style="display:flex;justify-content:flex-end">
+                        <button type="submit" class="btn btn-primary">Post comment</button>
+                    </div>
+                </form>
+            <% } %>
+        </section>
+    </div>
+
+    <aside class="panel">
+        <div class="panel-header">
+            <div>
+                <h2>Ticket History</h2>
+                <p>Audit log of status and assignment changes</p>
+            </div>
+        </div>
+        <div class="timeline">
+            <% if (ticket.histories.length > 0) { %>
+                <% for (const history of ticket.histories) { %>
+                    <div class="timeline-item">
+                        <div class="timeline-title"><%= formatLabel(history.action) %></div>
+                        <div class="timeline-note"><%= history.note || 'Ticket updated' %></div>
+                        <div class="timeline-meta">
+                            <%= history.user ? history.user.name : 'System' %> · <span class="tabular"><%= formatDateTime(history.createdAt) %></span>
+                        </div>
+                    </div>
+                <% } %>
+            <% } else { %>
+                <p class="page-subtitle">No history recorded yet.</p>
+            <% } %>
+        </div>
+    </aside>
+</div>
+
 <%- include('../layouts/footer') %>

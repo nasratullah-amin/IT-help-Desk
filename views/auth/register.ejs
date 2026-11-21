@@ -1,10 +1,29 @@
 <%- include('../layouts/header') %>
-<div class="auth-shell"><section class="auth-panel"><div class="eyebrow">GET STARTED</div><h1>Create your account</h1><p class="muted">Register to submit and track your support tickets.</p>
-<form method="POST" action="/register" class="form-stack"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
-<label>Full name<input type="text" name="name" value="<%= old('name') %>" maxlength="100" required></label>
-<label>Email address<input type="email" name="email" value="<%= old('email') %>" required></label>
-<label>Password<input type="password" name="password" required minlength="10"></label>
-<label>Confirm password<input type="password" name="password_confirmation" required minlength="10"></label>
-<button class="btn btn-primary btn-block">Create account</button>
-</form><p class="auth-switch">Already registered? <a href="/login">Sign in</a></p></section><aside class="auth-aside"><div class="aside-icon">✦</div><h2>Get help without the back and forth.</h2><p>Keep every technical issue, update and resolution organized.</p></aside></div>
+<div class="auth-card">
+    <h1>Create account</h1>
+    <p class="auth-subtitle">Register as a portal user to submit and track IT support tickets.</p>
+
+    <form method="POST" action="/register" class="form-stack">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label>
+            Full name
+            <input type="text" name="name" value="<%= old('name') %>" maxlength="100" required placeholder="Enter your full name">
+        </label>
+        <label>
+            Email address
+            <input type="email" name="email" value="<%= old('email') %>" maxlength="150" required placeholder="you@university.edu">
+        </label>
+        <label>
+            Password
+            <input type="password" name="password" required minlength="10" placeholder="Minimum 10 characters">
+        </label>
+        <label>
+            Confirm password
+            <input type="password" name="password_confirmation" required minlength="10" placeholder="Repeat password">
+        </label>
+        <button type="submit" class="btn btn-primary btn-block">Create account</button>
+    </form>
+
+    <p class="auth-switch">Already have an account? <a href="/login">Sign in</a></p>
+</div>
 <%- include('../layouts/footer') %>

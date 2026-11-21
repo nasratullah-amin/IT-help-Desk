@@ -1,9 +1,64 @@
 <%- include('../layouts/header') %>
-<div class="auth-shell"><section class="auth-panel"><div class="eyebrow">SUPPORT PORTAL</div><h1>Welcome back</h1><p class="muted">Sign in to report an issue or manage support requests.</p>
-<form method="POST" action="/login" class="form-stack"><input type="hidden" name="_csrf" value="<%= csrfToken %>">
-<label>Email address<input type="email" name="email" value="<%= old('email') %>" required autofocus autocomplete="username"></label>
-<label>Password<input type="password" name="password" required autocomplete="current-password"></label>
-<label class="check-line"><input type="checkbox" name="remember" value="1"> Remember me</label>
-<button class="btn btn-primary btn-block">Sign in</button>
-</form><p class="auth-switch">New to the portal? <a href="/register">Create an account</a></p></section><aside class="auth-aside"><div class="aside-icon">✦</div><h2>Technical support, made simple.</h2><p>Submit a ticket, follow its progress and communicate with the support team in one place.</p></aside></div>
+<div class="auth-card">
+    <h1>Sign in</h1>
+    <p class="auth-subtitle">Access the IT Help Desk portal to submit or manage support tickets.</p>
+
+    <form method="POST" action="/login" class="form-stack" id="login-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label>
+            Email address
+            <input type="email" name="email" id="login-email" value="<%= old('email') %>" required autofocus autocomplete="username" placeholder="name@helpdesk.test">
+        </label>
+        <label>
+            Password
+            <input type="password" name="password" id="login-password" required autocomplete="current-password" placeholder="Enter your password">
+        </label>
+        <label class="check-line">
+            <input type="checkbox" name="remember" value="1">
+            <span>Keep me signed in</span>
+        </label>
+        <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+    </form>
+
+    <p class="auth-switch">Need an account? <a href="/register">Create a user account</a></p>
+</div>
+
+<div class="demo-box">
+    <h2>Test accounts</h2>
+    <p>Use these seeded accounts to evaluate each role:</p>
+    <div class="demo-accounts">
+        <div class="demo-account-row">
+            <div class="demo-account-info">
+                <strong>Admin</strong>
+                <span>admin@helpdesk.test / Admin@12345</span>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm fill-demo" data-email="admin@helpdesk.test" data-pass="Admin@12345">Fill</button>
+        </div>
+        <div class="demo-account-row">
+            <div class="demo-account-info">
+                <strong>Technician</strong>
+                <span>technician@helpdesk.test / Tech@12345</span>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm fill-demo" data-email="technician@helpdesk.test" data-pass="Tech@12345">Fill</button>
+        </div>
+        <div class="demo-account-row">
+            <div class="demo-account-info">
+                <strong>User</strong>
+                <span>user@helpdesk.test / User@12345</span>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm fill-demo" data-email="user@helpdesk.test" data-pass="User@12345">Fill</button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.querySelectorAll('.fill-demo').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        var emailInput = document.getElementById('login-email');
+        var passInput = document.getElementById('login-password');
+        if (emailInput) emailInput.value = btn.getAttribute('data-email') || '';
+        if (passInput) passInput.value = btn.getAttribute('data-pass') || '';
+    });
+});
+</script>
 <%- include('../layouts/footer') %>

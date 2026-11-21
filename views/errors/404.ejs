@@ -1,0 +1,8 @@
+<%- include('../layouts/header') %>
+<section class="panel error-card">
+    <div class="error-code">404</div>
+    <h1>Page not found</h1>
+    <p><%= typeof message !== 'undefined' ? message : 'The requested page or record could not be found.' %></p>
+    <a class="btn btn-primary" href="<%= currentUser ? '/dashboard' : '/login' %>">Return home</a>
+</section>
+<%- include('../layouts/footer') %>

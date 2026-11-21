@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { NextFunction, Request, Response } from 'express';
 import { formatDate, formatDateTime, formatLabel, TicketPolicy, ucfirst } from './helpers.js';
-import { users } from './store.js';
+import { notifications, users } from './store.js';
 import { User, UserRole } from './types.js';
 
 declare module 'express-session' {
@@ -28,7 +28,12 @@ export function flashErrors(
   if (oldInput) {
     const cleaned: Record<string, string> = {};
     for (const [k, v] of Object.entries(oldInput)) {
-      if (k === 'password' || k === 'password_confirmation' || k === '_csrf' || k === '_method') {
+      if (
+        k === 'password' ||
+        k === 'password_confirmation' ||
+        k === '_csrf' ||
+        k === '_method'
+      ) {
         continue;
       }
       if (typeof v === 'string') {
@@ -44,15 +49,30 @@ export function localsMiddleware(req: Request, res: Response, next: NextFunction
     req.session.csrfToken = crypto.randomBytes(24).toString('hex');
   }
 
-  const currentUser: User | null = req.session.userId
+  let currentUser: User | null = req.session.userId
     ? (users.get(req.session.userId) ?? null)
     : null;
+
+  if (currentUser && !currentUser.isActive) {
+    currentUser = null;
+  }
 
   if (req.session.userId && !currentUser) {
     delete req.session.userId;
   }
 
+  let unreadNotificationsCount = 0;
+  if (currentUser) {
+    for (const n of notifications.values()) {
+      if (n.userId === currentUser.id && !n.isRead) {
+        unreadNotificationsCount++;
+      }
+    }
+  }
+
   res.locals.currentUser = currentUser;
+  res.locals.currentPath = req.path;
+  res.locals.unreadNotificationsCount = unreadNotificationsCount;
   res.locals.csrfToken = req.session.csrfToken;
   res.locals.success = req.session.flashSuccess ?? null;
   res.locals.errors = req.session.flashErrors ?? [];
@@ -69,6 +89,7 @@ export function localsMiddleware(req: Request, res: Response, next: NextFunction
   res.locals.ucfirst = ucfirst;
   res.locals.formatLabel = formatLabel;
   res.locals.TicketPolicy = TicketPolicy;
+  res.locals.breadcrumbs = [];
 
   delete req.session.flashSuccess;
   delete req.session.flashErrors;
@@ -77,13 +98,19 @@ export function localsMiddleware(req: Request, res: Response, next: NextFunction
   next();
 }
 
+function isMultipartUploadRoute(req: Request): boolean {
+  const contentType = req.headers['content-type'] || '';
+  if (!contentType.includes('multipart/form-data')) return false;
+  if (req.method !== 'POST') return false;
+  return req.path === '/tickets' || /^\/tickets\/\d+\/attachments$/.test(req.path);
+}
+
 export function verifyCsrf(req: Request, res: Response, next: NextFunction): void {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     return next();
   }
-  const contentType = req.headers['content-type'] || '';
-  if (contentType.includes('multipart/form-data') && !req.body?._csrf) {
-    // Multipart forms will be checked right after multer parses fields
+  if (isMultipartUploadRoute(req)) {
+    // Verified by verifyMultipartCsrf immediately after multer parses fields
     return next();
   }
   const token = req.body?._csrf || req.headers['x-csrf-token'];
@@ -95,7 +122,7 @@ export function verifyCsrf(req: Request, res: Response, next: NextFunction): voi
 }
 
 export function verifyMultipartCsrf(req: Request, res: Response, next: NextFunction): void {
-  const token = req.body?._csrf;
+  const token = req.body?._csrf || req.headers['x-csrf-token'];
   if (!token || token !== req.session.csrfToken) {
     res.status(419).send('Page expired. Please go back, refresh, and try again.');
     return;
@@ -123,10 +150,13 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 }
 
 export function requireRole(...roles: UserRole[]) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (_req: Request, res: Response, next: NextFunction): void => {
     const user: User | null = res.locals.currentUser;
     if (!user || !roles.includes(user.role)) {
-      res.status(403).render('errors/403', { title: 'Access denied' });
+      res.status(403).render('errors/403', {
+        title: 'Access denied',
+        breadcrumbs: [{ label: 'Dashboard', href: '/dashboard' }, { label: 'Access Denied' }],
+      });
       return;
     }
     next();
@@ -134,5 +164,16 @@ export function requireRole(...roles: UserRole[]) {
 }
 
 export function render403(res: Response): void {
-  res.status(403).render('errors/403', { title: 'Access denied' });
+  res.status(403).render('errors/403', {
+    title: 'Access denied',
+    breadcrumbs: [{ label: 'Dashboard', href: '/dashboard' }, { label: 'Access Denied' }],
+  });
+}
+
+export function render404(res: Response, message = 'The requested resource could not be found.'): void {
+  res.status(404).render('errors/404', {
+    title: 'Not found',
+    message,
+    breadcrumbs: [{ label: 'Dashboard', href: '/dashboard' }, { label: 'Not Found' }],
+  });
 }

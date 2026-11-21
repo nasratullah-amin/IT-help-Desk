@@ -1,8 +1,7 @@
 import { Router } from 'express';
-import { paginate } from '../helpers.js';
-import { flashErrors, flashSuccess, requireAuth, requireRole } from '../middleware.js';
-import { categories, ticketHistories, tickets, users } from '../store.js';
-import { User, UserRole } from '../types.js';
+import { requireAuth } from '../middleware.js';
+import { categories, notifications, ticketHistories, tickets, users } from '../store.js';
+import { User } from '../types.js';
 
 const router = Router();
 
@@ -16,10 +15,10 @@ router.get('/dashboard', requireAuth, (_req, res) => {
   });
 
   const sortedTickets = [...allTickets].sort(
-    (a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id - a.id
+    (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime() || b.id - a.id
   );
 
-  const recentTickets = sortedTickets.slice(0, 8).map((t) => ({
+  const recentTickets = sortedTickets.slice(0, 6).map((t) => ({
     ...t,
     user: users.get(t.userId) ?? null,
     technician: t.assignedTo ? (users.get(t.assignedTo) ?? null) : null,
@@ -33,17 +32,22 @@ router.get('/dashboard', requireAuth, (_req, res) => {
     progress: allTickets.filter((t) => t.status === 'in_progress').length,
     resolved: allTickets.filter((t) => t.status === 'resolved').length,
     closed: allTickets.filter((t) => t.status === 'closed').length,
-    critical: allTickets.filter((t) => t.priority === 'critical').length,
+    low: allTickets.filter((t) => t.priority === 'low').length,
+    medium: allTickets.filter((t) => t.priority === 'medium').length,
     high: allTickets.filter((t) => t.priority === 'high').length,
+    critical: allTickets.filter((t) => t.priority === 'critical').length,
   };
 
   const allUsers = Array.from(users.values());
   const adminStats =
     user.role === 'admin'
       ? {
+          totalUsers: allUsers.length,
           users: allUsers.filter((u) => u.role === 'user').length,
           technicians: allUsers.filter((u) => u.role === 'technician').length,
+          admins: allUsers.filter((u) => u.role === 'admin').length,
           categories: categories.size,
+          activeCategories: Array.from(categories.values()).filter((c) => c.isActive).length,
         }
       : null;
 
@@ -51,59 +55,27 @@ router.get('/dashboard', requireAuth, (_req, res) => {
   const recentActivity = Array.from(ticketHistories.values())
     .filter((h) => visibleTicketIds.has(h.ticketId))
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id - a.id)
-    .slice(0, 8)
+    .slice(0, 6)
     .map((h) => ({
       ...h,
       ticket: tickets.get(h.ticketId) ?? null,
       user: h.userId ? (users.get(h.userId) ?? null) : null,
     }));
 
+  const recentNotifications = Array.from(notifications.values())
+    .filter((n) => n.userId === user.id)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id - a.id)
+    .slice(0, 5);
+
   res.render('dashboard', {
     title: 'Dashboard',
+    breadcrumbs: [{ label: 'Dashboard' }],
     tickets: recentTickets,
     stats,
     adminStats,
     recentActivity,
+    recentNotifications,
   });
-});
-
-router.get('/users', requireAuth, requireRole('admin'), (req, res) => {
-  const allUsers = Array.from(users.values()).sort(
-    (a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id - a.id
-  );
-  const pagination = paginate(allUsers, req.query.page, 15, '/users', req.query);
-  res.render('users/index', {
-    title: 'Users',
-    users: pagination.items,
-    pagination,
-  });
-});
-
-router.patch('/users/:id/role', requireAuth, requireRole('admin'), (req, res) => {
-  const targetId = Number(req.params.id);
-  const targetUser = users.get(targetId);
-  if (!targetUser) {
-    res.status(404).send('User not found.');
-    return;
-  }
-
-  const currentUser: User = res.locals.currentUser;
-  if (currentUser.id === targetUser.id) {
-    res.status(422).send('You cannot change your own role.');
-    return;
-  }
-
-  const role = typeof req.body.role === 'string' ? req.body.role : '';
-  if (!['user', 'technician', 'admin'].includes(role)) {
-    flashErrors(req, ['The selected role is invalid.']);
-    res.redirect('/users');
-    return;
-  }
-
-  targetUser.role = role as UserRole;
-  targetUser.updatedAt = new Date();
-  flashSuccess(req, 'User role updated.');
-  res.redirect(req.get('Referer') || '/users');
 });
 
 export default router;

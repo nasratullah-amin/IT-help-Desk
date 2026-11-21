@@ -1,4 +1,91 @@
-    </main>
-    <footer class="footer"><div class="container">IT Help Desk Ticketing System</div></footer>
+<% if (currentUser) { %>
+        </main>
+        <footer class="app-footer">
+            <span>IT Help Desk Ticketing System</span>
+            <span>Support Management Portal</span>
+        </footer>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+    <div class="modal-dialog">
+        <h2 id="confirm-modal-title">Confirm action</h2>
+        <p id="confirm-modal-message">Are you sure you want to continue?</p>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary btn-sm" id="confirm-modal-cancel">Cancel</button>
+            <button type="button" class="btn btn-danger btn-sm" id="confirm-modal-submit">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var sidebar = document.getElementById('app-sidebar');
+    var backdrop = document.getElementById('sidebar-backdrop');
+    var openBtn = document.getElementById('sidebar-open');
+    var closeBtn = document.getElementById('sidebar-close');
+
+    function setSidebar(open) {
+        if (!sidebar || !backdrop) return;
+        sidebar.classList.toggle('open', open);
+        backdrop.classList.toggle('open', open);
+    }
+
+    if (openBtn) openBtn.addEventListener('click', function () { setSidebar(true); });
+    if (closeBtn) closeBtn.addEventListener('click', function () { setSidebar(false); });
+    if (backdrop) backdrop.addEventListener('click', function () { setSidebar(false); });
+
+    var modal = document.getElementById('confirm-modal');
+    var modalTitle = document.getElementById('confirm-modal-title');
+    var modalMessage = document.getElementById('confirm-modal-message');
+    var cancelBtn = document.getElementById('confirm-modal-cancel');
+    var submitBtn = document.getElementById('confirm-modal-submit');
+    var pendingForm = null;
+
+    function closeModal() {
+        if (modal) modal.classList.remove('open');
+        pendingForm = null;
+    }
+
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!form || !form.getAttribute) return;
+        var msg = form.getAttribute('data-confirm');
+        if (!msg) return;
+        if (form.getAttribute('data-confirmed') === 'true') return;
+        event.preventDefault();
+        pendingForm = form;
+        if (modalTitle) modalTitle.textContent = form.getAttribute('data-confirm-title') || 'Confirm action';
+        if (modalMessage) modalMessage.textContent = msg;
+        if (modal) modal.classList.add('open');
+    });
+
+    if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+    if (modal) {
+        modal.addEventListener('click', function (e) {
+            if (e.target === modal) closeModal();
+        });
+    }
+    if (submitBtn) {
+        submitBtn.addEventListener('click', function () {
+            if (!pendingForm) return;
+            pendingForm.setAttribute('data-confirmed', 'true');
+            var formToSubmit = pendingForm;
+            closeModal();
+            formToSubmit.submit();
+        });
+    }
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            closeModal();
+            setSidebar(false);
+        }
+    });
+})();
+</script>
+<% } else { %>
+    </div>
+</div>
+<% } %>
 </body>
 </html>

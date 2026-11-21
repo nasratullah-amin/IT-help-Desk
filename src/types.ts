@@ -4,12 +4,20 @@ export type TicketStatus = 'open' | 'assigned' | 'in_progress' | 'resolved' | 'c
 
 export type TicketPriority = 'low' | 'medium' | 'high' | 'critical';
 
+export type NotificationType =
+  | 'ticket_created'
+  | 'ticket_assigned'
+  | 'status_changed'
+  | 'comment_added'
+  | 'ticket_resolved';
+
 export interface User {
   id: number;
   name: string;
   email: string;
   passwordHash: string;
   role: UserRole;
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -68,4 +76,20 @@ export interface TicketHistory {
   toStatus: string | null;
   note: string | null;
   createdAt: Date;
+}
+
+export interface Notification {
+  id: number;
+  userId: number;
+  ticketId: number | null;
+  type: NotificationType;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: Date;
+}
+
+export interface BreadcrumbItem {
+  label: string;
+  href?: string;
 }

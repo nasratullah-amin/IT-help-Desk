@@ -1,0 +1,59 @@
+<%- include('../layouts/header') %>
+
+<div class="page-header">
+    <div>
+        <h1>Notifications</h1>
+        <p class="page-subtitle">Stay informed on ticket creation, assignments, comments, and status updates.</p>
+    </div>
+    <div class="header-actions">
+        <a class="btn <%= filter !== 'unread' ? 'btn-primary' : 'btn-secondary' %> btn-sm" href="/notifications">All</a>
+        <a class="btn <%= filter === 'unread' ? 'btn-primary' : 'btn-secondary' %> btn-sm" href="/notifications?filter=unread">Unread (<%= unreadNotificationsCount %>)</a>
+        <% if (unreadNotificationsCount > 0) { %>
+        <form method="POST" action="/notifications/mark-all-read" style="margin:0">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="btn btn-secondary btn-sm">Mark all as read</button>
+        </form>
+        <% } %>
+    </div>
+</div>
+
+<section class="panel panel-flush">
+    <% if (notifications.length > 0) { %>
+    <div class="notification-list">
+        <% for (const n of notifications) { %>
+        <div class="notification-row <%= n.isRead ? '' : 'unread' %>">
+            <div class="notification-content">
+                <div class="notification-title">
+                    <%= n.title %>
+                    <% if (!n.isRead) { %>
+                        <span class="badge status-open" style="margin-left:6px">Unread</span>
+                    <% } %>
+                </div>
+                <div class="notification-message"><%= n.message %></div>
+                <div class="notification-time tabular"><%= formatDateTime(n.createdAt) %></div>
+            </div>
+            <div class="notification-actions">
+                <% if (n.ticketId) { %>
+                    <a class="btn btn-primary btn-sm" href="/notifications/<%= n.id %>/open">Open ticket</a>
+                <% } %>
+                <% if (!n.isRead) { %>
+                <form method="POST" action="/notifications/<%= n.id %>/read" style="margin:0">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <input type="hidden" name="_method" value="PATCH">
+                    <button type="submit" class="btn btn-secondary btn-sm">Mark read</button>
+                </form>
+                <% } %>
+            </div>
+        </div>
+        <% } %>
+    </div>
+    <% } else { %>
+    <div class="empty-state">
+        <p><%= filter === 'unread' ? 'You have no unread notifications.' : 'No notifications recorded yet.' %></p>
+        <a class="btn btn-secondary btn-sm" href="/tickets">Browse tickets</a>
+    </div>
+    <% } %>
+    <%- include('../partials/pagination', { pagination: pagination }) %>
+</section>
+
+<%- include('../layouts/footer') %>

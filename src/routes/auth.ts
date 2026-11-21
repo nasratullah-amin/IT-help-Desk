@@ -19,7 +19,7 @@ function isValidEmail(email: string): boolean {
 }
 
 router.get('/login', requireGuest, (_req, res) => {
-  res.render('auth/login', { title: 'Login' });
+  res.render('auth/login', { title: 'Sign in' });
 });
 
 router.post('/login', requireGuest, (req, res) => {
@@ -68,6 +68,16 @@ router.post('/login', requireGuest, (req, res) => {
     return;
   }
 
+  if (!user.isActive) {
+    flashErrors(
+      req,
+      ['Your account has been deactivated. Please contact an administrator.'],
+      { email }
+    );
+    res.redirect('/login');
+    return;
+  }
+
   loginAttempts.delete(key);
 
   const intendedUrl = req.session.intendedUrl;
@@ -81,7 +91,11 @@ router.post('/login', requireGuest, (req, res) => {
     if (remember) {
       req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
     }
-    res.redirect(intendedUrl && intendedUrl.startsWith('/') ? intendedUrl : '/dashboard');
+    const safeRedirect =
+      intendedUrl && intendedUrl.startsWith('/') && !intendedUrl.startsWith('//')
+        ? intendedUrl
+        : '/dashboard';
+    res.redirect(safeRedirect);
   });
 });
 
@@ -133,6 +147,7 @@ router.post('/register', requireGuest, (req, res) => {
     email,
     passwordHash: bcrypt.hashSync(password, 10),
     role: 'user' as const,
+    isActive: true,
     createdAt: now,
     updatedAt: now,
   };

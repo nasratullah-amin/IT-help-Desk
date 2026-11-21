@@ -1,3 +1,119 @@
 <%- include('../layouts/header') %>
-<div class="page-heading"><div><div class="eyebrow">ADMINISTRATION</div><h1>User management</h1><p class="muted">Manage portal access and assign system roles.</p></div></div><section class="panel"><div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Current role</th><th>Change role</th><th>Joined</th></tr></thead><tbody><% for (const user of users) { %><tr><td><%= user.name %></td><td><%= user.email %></td><td><%= ucfirst(user.role) %></td><td><form method="POST" action="/users/<%= user.id %>/role" class="role-form"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="_method" value="PATCH"><select name="role"><% for (const role of ['user','technician','admin']) { %><option value="<%= role %>" <%= user.role === role ? 'selected' : '' %>><%= ucfirst(role) %></option><% } %></select><button class="btn btn-dark btn-sm">Save</button></form></td><td><%= formatDate(user.createdAt) %></td></tr><% } %></tbody></table></div><%- include('../partials/pagination', { pagination: pagination }) %></section>
+
+<div class="page-header">
+    <div>
+        <h1>User management</h1>
+        <p class="page-subtitle">Create, edit, search, and manage portal accounts and permissions.</p>
+    </div>
+    <div class="header-actions">
+        <a class="btn btn-primary" href="/users/create">Create user</a>
+    </div>
+</div>
+
+<form method="GET" action="/users" class="filter-bar">
+    <input
+        type="search"
+        name="search"
+        placeholder="Search by name, email, or ID"
+        value="<%= query.search || '' %>"
+        aria-label="Search users"
+    >
+    <select name="role" aria-label="Filter by role">
+        <option value="">All roles</option>
+        <% for (const role of ['user', 'technician', 'admin']) { %>
+            <option value="<%= role %>" <%= query.role === role ? 'selected' : '' %>><%= ucfirst(role) %></option>
+        <% } %>
+    </select>
+    <select name="status" aria-label="Filter by account status">
+        <option value="">All statuses</option>
+        <option value="active" <%= query.status === 'active' ? 'selected' : '' %>>Active</option>
+        <option value="inactive" <%= query.status === 'inactive' ? 'selected' : '' %>>Inactive</option>
+    </select>
+    <button type="submit" class="btn btn-primary">Filter</button>
+    <a class="btn btn-secondary" href="/users">Reset</a>
+</form>
+
+<section class="panel panel-flush">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>User</th>
+                    <th>Status</th>
+                    <th>Role</th>
+                    <th>Tickets</th>
+                    <th>Joined</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            <% if (users.length > 0) { %>
+                <% for (const user of users) { %>
+                <tr>
+                    <td class="mono">#<%= user.id %></td>
+                    <td>
+                        <span class="table-title"><%= user.name %></span>
+                        <span class="table-sub"><%= user.email %></span>
+                    </td>
+                    <td>
+                        <span class="badge <%= user.isActive ? 'state-active' : 'state-inactive' %>">
+                            <%= user.isActive ? 'Active' : 'Inactive' %>
+                        </span>
+                    </td>
+                    <td>
+                        <% if (user.id === currentUser.id) { %>
+                            <span><%= ucfirst(user.role) %> (You)</span>
+                        <% } else { %>
+                        <form method="POST" action="/users/<%= user.id %>/role" style="display:flex;gap:6px;align-items:center">
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                            <input type="hidden" name="_method" value="PATCH">
+                            <select name="role" class="form-control" style="min-height:32px;padding:4px 8px;font-size:12.5px" aria-label="Role for <%= user.name %>">
+                                <% for (const role of ['user','technician','admin']) { %>
+                                    <option value="<%= role %>" <%= user.role === role ? 'selected' : '' %>><%= ucfirst(role) %></option>
+                                <% } %>
+                            </select>
+                            <button type="submit" class="btn btn-secondary btn-sm">Update</button>
+                        </form>
+                        <% } %>
+                    </td>
+                    <td class="tabular">
+                        <%= user.createdTicketsCount %> submitted · <%= user.assignedTicketsCount %> assigned
+                    </td>
+                    <td class="tabular"><%= formatDate(user.createdAt) %></td>
+                    <td>
+                        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                            <a class="btn btn-subtle btn-sm" href="/users/<%= user.id %>/edit">Edit</a>
+                            <% if (user.id !== currentUser.id) { %>
+                                <form method="POST" action="/users/<%= user.id %>/toggle-status" style="margin:0">
+                                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                                    <input type="hidden" name="_method" value="PATCH">
+                                    <button type="submit" class="btn btn-secondary btn-sm">
+                                        <%= user.isActive ? 'Deactivate' : 'Activate' %>
+                                    </button>
+                                </form>
+                                <form method="POST" action="/users/<%= user.id %>" style="margin:0" data-confirm="Delete user '<%= user.name %>'? Users with existing tickets cannot be deleted." data-confirm-title="Delete user">
+                                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                                    <input type="hidden" name="_method" value="DELETE">
+                                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                </form>
+                            <% } %>
+                        </div>
+                    </td>
+                </tr>
+                <% } %>
+            <% } else { %>
+                <tr>
+                    <td colspan="7" class="empty-state">
+                        <p>No users match your search criteria.</p>
+                        <a class="btn btn-secondary btn-sm" href="/users">Clear filters</a>
+                    </td>
+                </tr>
+            <% } %>
+            </tbody>
+        </table>
+    </div>
+    <%- include('../partials/pagination', { pagination: pagination }) %>
+</section>
+
 <%- include('../layouts/footer') %>

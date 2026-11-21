@@ -1,0 +1,75 @@
+<%- include('../layouts/header') %>
+
+<div class="narrow-page">
+    <div class="page-header">
+        <div>
+            <h1><%= targetUser ? `Edit user: ${targetUser.name}` : 'Create new user' %></h1>
+            <p class="page-subtitle"><%= targetUser ? 'Update account details, role, and active status.' : 'Add a new user, technician, or administrator account.' %></p>
+        </div>
+    </div>
+
+    <section class="panel">
+        <form method="POST" action="<%= targetUser ? `/users/${targetUser.id}` : '/users' %>" class="form-stack">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <% if (targetUser) { %>
+                <input type="hidden" name="_method" value="PUT">
+            <% } %>
+            <input type="hidden" name="is_active" value="0">
+
+            <label>
+                Full name
+                <input type="text" name="name" value="<%= old('name', targetUser ? targetUser.name : '') %>" maxlength="100" required>
+            </label>
+
+            <label>
+                Email address
+                <input type="email" name="email" value="<%= old('email', targetUser ? targetUser.email : '') %>" maxlength="150" required>
+            </label>
+
+            <div class="form-grid-2">
+                <label>
+                    Role
+                    <% const selectedRole = old('role', targetUser ? targetUser.role : 'user'); %>
+                    <select name="role" <%= targetUser && targetUser.id === currentUser.id ? 'disabled' : '' %>>
+                        <% for (const role of ['user', 'technician', 'admin']) { %>
+                            <option value="<%= role %>" <%= selectedRole === role ? 'selected' : '' %>><%= ucfirst(role) %></option>
+                        <% } %>
+                    </select>
+                    <% if (targetUser && targetUser.id === currentUser.id) { %>
+                        <input type="hidden" name="role" value="<%= targetUser.role %>">
+                        <span class="field-hint">You cannot change your own role.</span>
+                    <% } %>
+                </label>
+
+                <label>
+                    <%= targetUser ? 'New password (optional)' : 'Password' %>
+                    <input
+                        type="password"
+                        name="password"
+                        minlength="10"
+                        <%= targetUser ? '' : 'required' %>
+                        placeholder="<%= targetUser ? 'Leave blank to keep current password' : 'Minimum 10 characters' %>"
+                    >
+                </label>
+            </div>
+
+            <% const checkedActive = old('is_active', targetUser ? (targetUser.isActive ? '1' : '0') : '1') === '1'; %>
+            <% if (targetUser && targetUser.id === currentUser.id) { %>
+                <input type="hidden" name="is_active" value="1">
+                <span class="field-hint">Your own account remains active while signed in.</span>
+            <% } else { %>
+                <label class="check-line">
+                    <input type="checkbox" name="is_active" value="1" <%= checkedActive ? 'checked' : '' %>>
+                    <span>Account active (user can sign in)</span>
+                </label>
+            <% } %>
+
+            <div class="form-actions">
+                <a class="btn btn-secondary" href="/users">Cancel</a>
+                <button type="submit" class="btn btn-primary"><%= targetUser ? 'Save changes' : 'Create user' %></button>
+            </div>
+        </form>
+    </section>
+</div>
+
+<%- include('../layouts/footer') %>

@@ -1,3 +1,22 @@
 <%- include('../layouts/header') %>
-<div class="narrow-page"><div class="page-heading"><div><div class="eyebrow">TICKET #<%= ticket.id %></div><h1>Edit ticket</h1></div></div><section class="panel"><form method="POST" action="/tickets/<%= ticket.id %>"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="_method" value="PUT"><%- include('./_form', { ticket: ticket, categories: categories }) %><div class="form-actions"><a class="btn btn-light" href="/tickets/<%= ticket.id %>">Cancel</a><button class="btn btn-primary">Save changes</button></div></form></section></div>
+<div class="narrow-page">
+    <div class="page-header">
+        <div>
+            <h1>Edit ticket <span class="mono">#<%= ticket.id %></span></h1>
+            <p class="page-subtitle">Update subject, category, priority, or issue description.</p>
+        </div>
+    </div>
+
+    <section class="panel">
+        <form method="POST" action="/tickets/<%= ticket.id %>">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <input type="hidden" name="_method" value="PUT">
+            <%- include('./_form', { ticket: ticket, categories: categories }) %>
+            <div class="form-actions">
+                <a class="btn btn-secondary" href="/tickets/<%= ticket.id %>">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save changes</button>
+            </div>
+        </form>
+    </section>
+</div>
 <%- include('../layouts/footer') %>

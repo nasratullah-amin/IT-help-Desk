@@ -1,3 +1,21 @@
 <%- include('../layouts/header') %>
-<div class="narrow-page"><div class="page-heading"><div><div class="eyebrow">NEW REQUEST</div><h1>Report a problem</h1><p class="muted">Describe the issue so the support team can help.</p></div></div><section class="panel"><form method="POST" action="/tickets" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><%- include('./_form', { ticket: null, categories: categories }) %><div class="form-actions"><a class="btn btn-light" href="/tickets">Cancel</a><button class="btn btn-primary">Submit ticket</button></div></form></section></div>
+<div class="narrow-page">
+    <div class="page-header">
+        <div>
+            <h1>Create new ticket</h1>
+            <p class="page-subtitle">Provide clear details about your technical issue so the support team can assist.</p>
+        </div>
+    </div>
+
+    <section class="panel">
+        <form method="POST" action="/tickets" enctype="multipart/form-data">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <%- include('./_form', { ticket: null, categories: categories }) %>
+            <div class="form-actions">
+                <a class="btn btn-secondary" href="/tickets">Cancel</a>
+                <button type="submit" class="btn btn-primary">Submit ticket</button>
+            </div>
+        </form>
+    </section>
+</div>
 <%- include('../layouts/footer') %>
