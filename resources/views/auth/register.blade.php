@@ -1,0 +1,12 @@
+@extends('layouts.app')
+@section('title', 'Create account')
+@section('content')
+<div class="auth-shell"><section class="auth-panel"><div class="eyebrow">GET STARTED</div><h1>Create your account</h1><p class="muted">Register to submit and track your support tickets.</p>
+<form method="POST" action="{{ route('register.store') }}" class="form-stack">@csrf
+<label>Full name<input type="text" name="name" value="{{ old('name') }}" maxlength="100" required></label>
+<label>Email address<input type="email" name="email" value="{{ old('email') }}" required></label>
+<label>Password<input type="password" name="password" required minlength="10"></label>
+<label>Confirm password<input type="password" name="password_confirmation" required minlength="10"></label>
+<button class="btn btn-primary btn-block">Create account</button>
+</form><p class="auth-switch">Already registered? <a href="{{ route('login') }}">Sign in</a></p></section><aside class="auth-aside"><div class="aside-icon">✦</div><h2>Get help without the back and forth.</h2><p>Keep every technical issue, update and resolution organized.</p></aside></div>
+@endsection
